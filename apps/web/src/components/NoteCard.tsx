@@ -1,23 +1,47 @@
 'use client';
 
-import { formatBytes, hostOf, safeHref, type Note } from '@/lib/api';
+import { formatBytes, hostOf, isIndexing, safeHref, type MatchedBy, type Note } from '@/lib/api';
 
 type Props = {
   note: Note;
   folderName?: string;
+  /** Set when the card is a search result. */
+  match?: { snippet: string | null; matchedBy: MatchedBy };
   onOpen: () => void;
   onPatch: (data: Partial<Note>) => void;
   onTrash: () => void;
   onRestore: () => void;
   onDestroy: () => void;
+  onRetry: () => void;
 };
 
 const TYPE_BADGE: Record<Note['type'], string> = { note: 'Note', snippet: 'Snippet', url: 'Link', idea: 'Idea', document: 'Doc' };
+const MATCH_LABEL: Record<MatchedBy, string> = { meaning: 'Matched by meaning', both: 'Matched by meaning and keywords', keyword: '' };
 
-export function NoteCard({ note: n, folderName, onOpen, onPatch, onTrash, onRestore, onDestroy }: Props) {
+function ProcessingBadge({ note: n, onRetry }: { note: Note; onRetry: () => void }) {
+  if (isIndexing(n)) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded bg-paper px-1.5 py-0.5" title="Preparing this item for search by meaning">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden />
+        Processing…
+      </span>
+    );
+  }
+  if (n.processing?.status === 'failed') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded bg-red-50 px-1.5 py-0.5 text-red-700" title={n.processing.error ?? undefined}>
+        Failed
+        <button className="font-medium underline" onClick={onRetry} aria-label={`Retry processing ${n.title || 'untitled item'}`}>Retry</button>
+      </span>
+    );
+  }
+  return null;
+}
+
+export function NoteCard({ note: n, folderName, match, onOpen, onPatch, onTrash, onRestore, onDestroy, onRetry }: Props) {
   const trashed = !!n.deletedAt;
   const href = safeHref(n.sourceUrl);
-  const preview = n.content || n.metadata?.description || '';
+  const preview = match?.snippet || n.content || n.metadata?.description || '';
 
   return (
     <li className={`rounded border bg-white p-4 ${n.pinned ? 'border-flag' : 'border-line'}`}>
@@ -27,6 +51,7 @@ export function NoteCard({ note: n, folderName, onOpen, onPatch, onTrash, onRest
             <span className="rounded bg-paper px-1.5 py-0.5 font-medium uppercase tracking-wide">{TYPE_BADGE[n.type] ?? n.type}</span>
             {n.type === 'snippet' && n.metadata?.language && <span className="font-mono">{n.metadata.language}</span>}
             {folderName && <span>in {folderName}</span>}
+            {!trashed && <ProcessingBadge note={n} onRetry={onRetry} />}
           </div>
           {trashed ? (
             <h2 className="font-serif text-lg font-semibold">{n.title || 'Untitled'}</h2>
@@ -59,6 +84,7 @@ export function NoteCard({ note: n, folderName, onOpen, onPatch, onTrash, onRest
       {preview && (
         <p className={`mt-1 line-clamp-3 max-w-prose whitespace-pre-wrap text-muted ${n.type === 'snippet' ? 'font-mono text-sm' : 'font-serif'}`}>{preview}</p>
       )}
+      {match && MATCH_LABEL[match.matchedBy] && <p className="mt-1 text-xs text-accent">{MATCH_LABEL[match.matchedBy]}</p>}
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
         {n.tags.map((t) => <span key={t} className="rounded-full bg-paper px-2 py-0.5 text-xs">#{t}</span>)}

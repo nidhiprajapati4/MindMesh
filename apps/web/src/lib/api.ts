@@ -36,9 +36,18 @@ export type Note = {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Search indexing state (Phase 3). Missing on items not processed yet. */
+  processing?: { status: 'pending' | 'processing' | 'ready' | 'failed' | 'skipped'; updatedAt: string; error: string | null } | null;
 };
 
 export type NoteList = { items: Note[]; total: number; page: number; limit: number; matchMode: 'all' | 'text' | 'partial' };
+
+export type SearchMode = 'keyword' | 'semantic' | 'hybrid';
+export type MatchedBy = 'keyword' | 'meaning' | 'both';
+export type SearchHit = { note: Note; score: number; snippet: string | null; matchedBy: MatchedBy };
+export type SearchResults = { mode: SearchMode; items: SearchHit[]; warning?: string };
+
+export const isIndexing = (n: Note) => n.processing?.status === 'pending' || n.processing?.status === 'processing';
 
 export type Folder = { _id: string; name: string; color: string | null; noteCount: number };
 export type FolderList = { folders: Folder[]; unfiledCount: number };

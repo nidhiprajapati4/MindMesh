@@ -1,15 +1,22 @@
 import type { FilterQuery, SortOrder } from 'mongoose';
 import { HttpError } from '../../middleware/errors';
 import { Note, type INote } from '../../models/Note';
+import { dropEmbeddings, queueIfChanged } from '../ai-processing/jobs';
 import { assertFolderOwned } from '../folders/folders.service';
 import { extractFile } from './file-extract';
 import { fetchUrlMetadata } from './url-metadata';
 import type { CreateNoteInput, ListQuery, UpdateNoteInput } from './notes.schema';
 
 const notFound = () => new HttpError(404, 'Note not found');
+
+/** Queues embedding when the searchable content changed, and returns the note as the client should see it. */
+async function withProcessing<T extends Parameters<typeof queueIfChanged>[0]>(note: T): Promise<T> {
+  const set = await queueIfChanged(note);
+  return set ? { ...note, ...set } : note;
+}
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-function baseFilter(userId: string, query: ListQuery): FilterQuery<INote> {
+export function baseFilter(userId: string, query: ListQuery): FilterQuery<INote> {
   const view = query.archived ? 'archived' : query.view;
   const filter: FilterQuery<INote> = { userId };
   if (view === 'trash') filter.deletedAt = { $ne: null };
@@ -84,7 +91,8 @@ export async function listTags(userId: string) {
 
 export async function createNote(userId: string, input: CreateNoteInput) {
   if (input.folderId) await assertFolderOwned(userId, input.folderId);
-  return Note.create({ ...input, userId });
+  const note = await Note.create({ ...input, userId });
+  return withProcessing(note.toObject());
 }
 
 export async function getNote(userId: string, id: string) {
@@ -107,7 +115,7 @@ export async function updateNote(userId: string, id: string, input: UpdateNoteIn
   const update = Object.keys($unset).length ? { $set, $unset } : { $set };
   const note = await Note.findOneAndUpdate({ _id: id, userId, deletedAt: null }, update, { new: true, runValidators: true }).lean();
   if (!note) throw notFound();
-  return note;
+  return withProcessing(note);
 }
 
 export async function trashNote(userId: string, id: string) {
@@ -117,23 +125,29 @@ export async function trashNote(userId: string, id: string) {
     { new: true }
   ).lean();
   if (!note) throw notFound();
+  // Trashed items must not show up in search; their vectors are rebuilt if restored.
+  await dropEmbeddings([note._id]);
   return note;
 }
 
 export async function restoreNote(userId: string, id: string) {
   const note = await Note.findOneAndUpdate({ _id: id, userId, deletedAt: { $ne: null } }, { $set: { deletedAt: null } }, { new: true }).lean();
   if (!note) throw notFound();
-  return note;
+  const set = await queueIfChanged(note, true);
+  return { ...note, ...set };
 }
 
 /** Permanent delete is only allowed for items already in the trash. */
 export async function destroyNote(userId: string, id: string) {
   const result = await Note.deleteOne({ _id: id, userId, deletedAt: { $ne: null } });
   if (!result.deletedCount) throw notFound();
+  await dropEmbeddings([id]);
 }
 
 export async function emptyTrash(userId: string) {
-  const result = await Note.deleteMany({ userId, deletedAt: { $ne: null } });
+  const ids = await Note.find({ userId, deletedAt: { $ne: null } }).distinct('_id');
+  const result = await Note.deleteMany({ _id: { $in: ids }, userId });
+  await dropEmbeddings(ids);
   return { deleted: result.deletedCount };
 }
 
@@ -145,7 +159,7 @@ export async function uploadDocument(
 ) {
   if (fields.folderId) await assertFolderOwned(userId, fields.folderId);
   const extracted = await extractFile(file.originalname, file.buffer);
-  return Note.create({
+  const note = await Note.create({
     userId,
     type: 'document',
     title: extracted.title,
@@ -160,6 +174,7 @@ export async function uploadDocument(
       truncated: extracted.truncated || undefined,
     },
   });
+  return withProcessing(note.toObject());
 }
 
 /**
@@ -169,7 +184,7 @@ export async function uploadDocument(
 export async function captureUrl(userId: string, input: { url: string; folderId: string | null; tags: string[] }) {
   if (input.folderId) await assertFolderOwned(userId, input.folderId);
   const meta = await fetchUrlMetadata(input.url).catch(() => null);
-  return Note.create({
+  const note = await Note.create({
     userId,
     type: 'url',
     title: (meta?.title || input.url).slice(0, 200),
@@ -183,4 +198,5 @@ export async function captureUrl(userId: string, input: { url: string; folderId:
       author: meta?.author,
     },
   });
+  return withProcessing(note.toObject());
 }

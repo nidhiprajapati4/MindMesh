@@ -17,6 +17,10 @@ export async function startTestApi() {
     FIREBASE_PROJECT_ID: PROJECT_ID,
     FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9',
     CLIENT_ORIGIN: 'http://localhost:3000',
+    // Deterministic vectors and in-memory vector search: no model download, no Atlas.
+    EMBEDDING_PROVIDER: 'fake',
+    VECTOR_BACKEND: 'memory',
+    AI_DAILY_TOKEN_BUDGET: '200000',
   });
   const { adminAuth } = await import('../config/firebase.js');
   // The Admin SDK would call the Auth emulator over HTTP; check the same claims locally instead.

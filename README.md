@@ -1,4 +1,8 @@
-# MindMesh AI — Phase 2: Organize, search & capture (no AI)
+# MindMesh AI
+
+**Phase 3 (current): ingestion, embeddings and search by meaning.** See [phase3_Readme.md](phase3_Readme.md). It adds a background worker, so run `npm run dev:worker` alongside the API and web app. Phase details: [Phase 1](phase1_Readme.md) · [Phase 2](phase2_Readme.md) · [Phase 3](phase3_Readme.md).
+
+## Phase 2: Organize, search & capture (no AI)
 
 Phase 1: auth (Firebase) + notes CRUD, tags, pin/archive, MongoDB text search.
 Phase 2 adds item types, folders, richer metadata, URL capture, keyword search with filters and sorting,
@@ -23,7 +27,7 @@ Not done yet (Phase 1 NFRs still open): `{ error: { code, message, requestId } }
 3. MongoDB Atlas: create a cluster and copy the connection string.
 4. Fill in `apps/api/.env` and `apps/web/.env` (see `apps/api/src/config/env.ts` for the API keys).
 5. `npm install` at the repo root.
-6. `npm run dev:api` (port 4000) and `npm run dev:web` (port 3000).
+6. `npm run dev:api` (port 4000), `npm run dev:worker` (Phase 3 background processing) and `npm run dev:web` (port 3000).
 7. `npm test -w apps/api` runs the unit tests (schemas, SSRF guard, HTML metadata parsing).
 
 On startup the API backfills Phase 1 notes and runs `syncIndexes()`, which replaces the Phase 1 text index with the Phase 2 one.

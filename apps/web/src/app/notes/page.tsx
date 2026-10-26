@@ -8,18 +8,41 @@ import { Sidebar, type Filters } from '@/components/Sidebar';
 import {
   api,
   EDITABLE_METADATA_KEYS,
+  isIndexing,
   TYPE_LABELS,
   type EditableMetadata,
   type Folder,
   type FolderList,
+  type MatchedBy,
   type Note,
   type NoteList,
   type NoteMetadata,
+  type SearchMode,
+  type SearchResults,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 const PAGE_SIZE = 20;
+const SEARCH_LIMIT = 50;
+const POLL_MS = 3000;
 type Sort = 'auto' | 'updated' | 'created' | 'title';
+/** The list, plus per-item match info and a notice when the results came from /api/search. */
+type ListState = NoteList & { matches?: Record<string, { snippet: string | null; matchedBy: MatchedBy }>; warning?: string };
+
+const SEARCH_MODES: { value: SearchMode; label: string; hint: string }[] = [
+  { value: 'keyword', label: 'Keyword', hint: 'Match the words you type' },
+  { value: 'semantic', label: 'Meaning', hint: 'Find items about the same idea, even with different words' },
+  { value: 'hybrid', label: 'Both', hint: 'Keyword and meaning matches combined' },
+];
+const MODE_KEY = 'mindmesh.searchMode';
+const savedMode = (): SearchMode => {
+  try {
+    const v = localStorage.getItem(MODE_KEY);
+    return v === 'keyword' || v === 'semantic' || v === 'hybrid' ? v : 'hybrid';
+  } catch {
+    return 'hybrid';
+  }
+};
 
 const toTags = (s: string) => [...new Set(s.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean))];
 const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
@@ -58,7 +81,8 @@ export default function NotesPage() {
   const [filters, setFilters] = useState<Filters>({ view: 'active', type: '', folder: '', tag: '' });
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<Sort>('auto');
-  const [list, setList] = useState<NoteList | null>(null);
+  const [mode, setMode] = useState<SearchMode>('hybrid');
+  const [list, setList] = useState<ListState | null>(null);
   const [folders, setFolders] = useState<FolderList>({ folders: [], unfiledCount: 0 });
   const [tags, setTags] = useState<string[]>([]);
   const [editor, setEditor] = useState<{ draft: Draft; mode: 'write' | 'upload'; key: number } | null>(null);
@@ -73,8 +97,38 @@ export default function NotesPage() {
     if (!loading && !user) router.replace('/login');
   }, [user, loading, router]);
 
+  // Restore the last search mode after mount (localStorage isn't available during server render).
+  useEffect(() => setMode(savedMode()), []);
+  const changeMode = (m: SearchMode) => {
+    setMode(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      /* private mode: the choice just isn't remembered */
+    }
+  };
+
+  // Meaning/hybrid search only covers active items; archive and trash keep keyword search.
+  const meaningSearch = !!q.trim() && filters.view === 'active' && mode !== 'keyword';
+
   const fetchPage = useCallback(
-    (page: number, limit = PAGE_SIZE) => {
+    async (page: number, limit = PAGE_SIZE): Promise<ListState> => {
+      if (meaningSearch) {
+        const p = new URLSearchParams({ q: q.trim(), mode, limit: String(SEARCH_LIMIT) });
+        if (filters.type) p.set('type', filters.type);
+        if (filters.folder) p.set('folder', filters.folder);
+        if (filters.tag) p.set('tag', filters.tag);
+        const res = await api<SearchResults>(`/api/search?${p}`);
+        return {
+          items: res.items.map((h) => h.note),
+          total: res.items.length,
+          page: 1,
+          limit: SEARCH_LIMIT,
+          matchMode: 'all',
+          matches: Object.fromEntries(res.items.map((h) => [h.note._id, { snippet: h.snippet, matchedBy: h.matchedBy }])),
+          warning: res.warning,
+        };
+      }
       const p = new URLSearchParams({ view: filters.view, page: String(page), limit: String(limit) });
       if (q.trim()) p.set('q', q.trim());
       if (filters.type) p.set('type', filters.type);
@@ -83,7 +137,7 @@ export default function NotesPage() {
       p.set('sort', sort === 'auto' ? (q.trim() ? 'relevance' : 'updated') : sort);
       return api<NoteList>(`/api/notes?${p}`);
     },
-    [filters, q, sort]
+    [filters, q, sort, mode, meaningSearch]
   );
 
   const loadSidebar = useCallback(async () => {
@@ -96,19 +150,26 @@ export default function NotesPage() {
   // Every list request gets a number; only the newest may update the list. Without this, a slow
   // response for old filters (e.g. a refresh after delete) can overwrite the view the user switched to.
   const requestSeq = useRef(0);
+  // Which query the shown list answers. If a *different* query fails, its stale results must not
+  // stay on screen looking like an answer; a failed refresh of the same view keeps the list.
+  const shownQuery = useRef('');
   const refresh = useCallback(
     async (keep = PAGE_SIZE) => {
       const seq = ++requestSeq.current;
+      const query = JSON.stringify([filters, q.trim(), sort, meaningSearch && mode]);
       try {
         const [l] = await Promise.all([fetchPage(1, Math.min(100, Math.max(PAGE_SIZE, keep))), loadSidebar()]);
         if (seq !== requestSeq.current) return;
         setList(l);
+        shownQuery.current = query;
         setError('');
       } catch (e) {
-        if (seq === requestSeq.current) setError(message(e, 'Could not load items'));
+        if (seq !== requestSeq.current) return;
+        setError(message(e, 'Could not load items'));
+        if (shownQuery.current !== query) setList(null);
       }
     },
-    [fetchPage, loadSidebar]
+    [fetchPage, loadSidebar, filters, q, sort, meaningSearch, mode]
   );
   // Actions finish after a re-render may have changed the filters, so always refresh with the latest ones.
   const refreshRef = useRef(refresh);
@@ -122,6 +183,17 @@ export default function NotesPage() {
     const t = setTimeout(() => refresh(), 250);
     return () => clearTimeout(t);
   }, [user, refresh]);
+
+  // While items are being processed, refresh every few seconds so their badges update.
+  // Not during meaning searches: each refresh would embed the query again.
+  const editorOpen = !!editor;
+  useEffect(() => {
+    if (!list?.items.some(isIndexing) || meaningSearch || filters.view === 'trash' || editorOpen) return;
+    const t = setTimeout(() => {
+      if (document.visibilityState === 'visible') void refreshRef.current(listRef.current?.items.length);
+    }, POLL_MS);
+    return () => clearTimeout(t);
+  }, [list, meaningSearch, filters.view, editorOpen]);
 
   // If the selected tag disappears (its last item was edited or trashed), stop filtering by it.
   useEffect(() => {
@@ -255,6 +327,7 @@ export default function NotesPage() {
     });
 
   const restore = (n: Note) => act(() => api(`/api/notes/${n._id}/restore`, { method: 'POST' }));
+  const retryProcessing = (n: Note) => act(() => api(`/api/notes/${n._id}/reprocess`, { method: 'POST' }));
   const destroy = (n: Note) =>
     confirm('Delete this item forever? This cannot be undone.') && act(() => api(`/api/notes/${n._id}/permanent`, { method: 'DELETE' }));
   const emptyTrash = () =>
@@ -317,7 +390,24 @@ export default function NotesPage() {
       <main className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <input ref={searchRef} className="field min-w-48 flex-1" type="search" placeholder="Search  ( / )" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search items" />
-          <select className="field w-auto" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort by">
+          {filters.view === 'active' && (
+            <div role="radiogroup" aria-label="Search by" className="flex rounded border border-line bg-white p-0.5 text-sm">
+              {SEARCH_MODES.map((m) => (
+                <button
+                  key={m.value}
+                  role="radio"
+                  aria-checked={mode === m.value}
+                  aria-label={m.label}
+                  title={m.hint}
+                  onClick={() => changeMode(m.value)}
+                  className={`rounded px-2.5 py-1 ${mode === m.value ? 'bg-accent text-white' : 'text-muted hover:text-ink'}`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <select className="field w-auto" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort by" disabled={meaningSearch} title={meaningSearch ? 'Results are ranked by best match' : undefined}>
             <option value="auto">{q.trim() ? 'Best match' : 'Recently updated'}</option>
             <option value="updated">Recently updated</option>
             <option value="created">Recently created</option>
@@ -350,6 +440,10 @@ export default function NotesPage() {
           </span>
         </div>
 
+        {list?.warning && (
+          <p role="status" className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{list.warning}</p>
+        )}
+
         {filters.view === 'trash' && !!items.length && (
           <div className="flex items-center justify-between rounded border border-line bg-white px-3 py-2 text-sm text-muted">
             Items in the trash are deleted forever after 30 days.
@@ -372,6 +466,8 @@ export default function NotesPage() {
               key={n._id}
               note={n}
               folderName={filters.folder ? undefined : folderName.get(n.folderId ?? '')}
+              match={list?.matches?.[n._id]}
+              onRetry={() => retryProcessing(n)}
               onOpen={() => openEditor(toDraft(n))}
               onPatch={(d) => patch(n, d)}
               onTrash={() => trash(n)}

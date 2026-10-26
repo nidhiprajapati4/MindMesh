@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { HttpError } from '../../middleware/errors';
+import { reprocess } from '../ai-processing/jobs';
 import { MAX_UPLOAD_BYTES } from './file-extract';
 import { captureUrlSchema, createNoteSchema, listQuerySchema, objectId, updateNoteSchema, uploadFieldsSchema } from './notes.schema';
 import * as notes from './notes.service';
@@ -57,6 +58,13 @@ router.delete('/:id', async (req, res) => {
 
 router.post('/:id/restore', async (req, res) => {
   res.json(await notes.restoreNote(req.auth!.userId, noteId(req.params.id)));
+});
+
+// Re-queues embedding for this item (the card's Retry button after a failure).
+router.post('/:id/reprocess', async (req, res) => {
+  const note = await reprocess(req.auth!.userId, noteId(req.params.id));
+  if (!note) throw new HttpError(404, 'Note not found');
+  res.json(note);
 });
 
 router.delete('/:id/permanent', async (req, res) => {

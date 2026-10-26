@@ -21,6 +21,18 @@ const metadataSchema = new Schema(
   { _id: false, strict: true }
 );
 
+export const PROCESSING_STATUSES = ['pending', 'processing', 'ready', 'failed', 'skipped'] as const;
+
+// Embedding status shown on cards. `skipped` = nothing to embed (empty item).
+const processingSchema = new Schema(
+  {
+    status: { type: String, enum: PROCESSING_STATUSES, required: true },
+    updatedAt: { type: Date, default: () => new Date() },
+    error: { type: String, default: null },
+  },
+  { _id: false }
+);
+
 const noteSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -35,6 +47,9 @@ const noteSchema = new Schema(
     archived: { type: Boolean, default: false },
     // Soft delete: set when moved to trash; the TTL index purges after the retention window.
     deletedAt: { type: Date, default: null },
+    // Phase 3: sha256 of the searchable text; unchanged content is never re-embedded.
+    contentHash: { type: String, default: null },
+    processing: { type: processingSchema, default: null },
   },
   // minimize: false keeps `metadata: {}` in responses instead of dropping the empty object.
   { timestamps: true, minimize: false }

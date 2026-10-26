@@ -1,9 +1,18 @@
 {
   "name": "mindmesh",
   "private": true,
-  "workspaces": ["apps/*"],
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
-    "dev:web": "npm run dev -w apps/web"
+    "dev:web": "npm run dev -w apps/web",
+    "dev:worker": "npm run dev:worker -w apps/api"
+  },
+  "overrides": {
+    "onnxruntime-node": "1.19.2",
+    "@huggingface/transformers": {
+      "sharp": "0.35.5"
+    }
   }
 }

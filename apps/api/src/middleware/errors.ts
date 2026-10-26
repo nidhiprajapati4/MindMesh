@@ -3,7 +3,8 @@ import { MulterError } from 'multer';
 import { ZodError } from 'zod';
 
 export class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  /** `code` is a stable machine-readable reason (e.g. QUOTA_EXCEEDED) sent alongside the message. */
+  constructor(public status: number, message: string, public code?: string) {
     super(message);
   }
 }
@@ -18,7 +19,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof ZodError) {
     res.status(400).json({ error: 'Validation failed', details: err.flatten() });
   } else if (err instanceof HttpError) {
-    res.status(err.status).json({ error: err.message });
+    res.status(err.status).json(err.code ? { error: err.message, code: err.code } : { error: err.message });
   } else if (err instanceof MulterError) {
     const [status, message] = MULTER_MESSAGES[err.code] ?? [400, err.message];
     res.status(status).json({ error: message });

@@ -2,6 +2,7 @@ import dns from 'node:dns';
 import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
+import { decodeEntities } from '../../lib/html';
 
 const TIMEOUT_MS = 5000;
 const MAX_BYTES = 512 * 1024;
@@ -104,13 +105,6 @@ function request(url: URL): Promise<RawResponse> {
   });
 }
 
-const decodeEntities = (s: string) =>
-  s
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
-    .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&');
-
 const clean = (s: string | undefined, max: number) => {
   const v = s && decodeEntities(s).replace(/\s+/g, ' ').trim();
   return v ? v.slice(0, max) : undefined;
@@ -137,7 +131,8 @@ export function parseHtmlMetadata(html: string) {
   };
 }
 
-export async function fetchUrlMetadata(raw: string): Promise<UrlMetadata> {
+/** Fetches an HTML page through the SSRF guard, following up to MAX_REDIRECTS validated redirects. */
+export async function fetchHtml(raw: string): Promise<{ finalUrl: string; html: string }> {
   let url = assertFetchableUrl(raw);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const res = await request(url);
@@ -146,7 +141,12 @@ export async function fetchUrlMetadata(raw: string): Promise<UrlMetadata> {
       continue;
     }
     if (res.status < 200 || res.status >= 300) throw new Error(`Upstream responded ${res.status}`);
-    return { finalUrl: url.toString(), ...parseHtmlMetadata(res.body) };
+    return { finalUrl: url.toString(), html: res.body };
   }
   throw new Error('Too many redirects');
+}
+
+export async function fetchUrlMetadata(raw: string): Promise<UrlMetadata> {
+  const { finalUrl, html } = await fetchHtml(raw);
+  return { finalUrl, ...parseHtmlMetadata(html) };
 }
