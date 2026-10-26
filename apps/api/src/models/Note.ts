@@ -11,6 +11,12 @@ const metadataSchema = new Schema(
     siteName: { type: String, trim: true, maxlength: 200 },
     description: { type: String, trim: true, maxlength: 1000 },
     author: { type: String, trim: true, maxlength: 200 },
+    // Set by the server for uploaded documents; not editable by the client.
+    fileName: { type: String, trim: true, maxlength: 255 },
+    fileSize: { type: Number, min: 0 },
+    mimeType: { type: String, maxlength: 100 },
+    pageCount: { type: Number, min: 0 },
+    truncated: { type: Boolean },
   },
   { _id: false, strict: true }
 );
@@ -30,12 +36,19 @@ const noteSchema = new Schema(
     // Soft delete: set when moved to trash; the TTL index purges after the retention window.
     deletedAt: { type: Date, default: null },
   },
-  { timestamps: true }
+  // minimize: false keeps `metadata: {}` in responses instead of dropping the empty object.
+  { timestamps: true, minimize: false }
 );
 
 noteSchema.index(
   { title: 'text', content: 'text', tags: 'text', 'metadata.description': 'text' },
-  { weights: { title: 10, tags: 5, 'metadata.description': 2, content: 1 }, name: 'note_text' }
+  {
+    weights: { title: 10, tags: 5, 'metadata.description': 2, content: 1 },
+    name: 'note_text_v2',
+    // MongoDB treats any field called `language` as the text-search language, which breaks
+    // snippets (metadata.language = "ts"). Point the override at a field we never set.
+    language_override: 'textSearchLanguage',
+  }
 );
 noteSchema.index({ userId: 1, deletedAt: 1, archived: 1, pinned: -1, updatedAt: -1 });
 noteSchema.index({ userId: 1, type: 1, updatedAt: -1 });

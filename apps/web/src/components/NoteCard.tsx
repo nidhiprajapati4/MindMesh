@@ -1,6 +1,6 @@
 'use client';
 
-import { hostOf, safeHref, type Note } from '@/lib/api';
+import { formatBytes, hostOf, safeHref, type Note } from '@/lib/api';
 
 type Props = {
   note: Note;
@@ -40,6 +40,16 @@ export function NoteCard({ note: n, folderName, onOpen, onPatch, onTrash, onRest
               {n.metadata?.siteName ? `${n.metadata.siteName} · ` : ''}{hostOf(href)}
             </a>
           )}
+          {n.metadata?.fileName && (
+            <p className="flex items-center gap-1 truncate text-xs text-muted">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0">
+                <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" /><path d="M14 3v6h6" />
+              </svg>
+              {n.metadata.fileName}
+              {n.metadata.fileSize !== undefined && ` · ${formatBytes(n.metadata.fileSize)}`}
+              {n.metadata.pageCount ? ` · ${n.metadata.pageCount} page${n.metadata.pageCount === 1 ? '' : 's'}` : ''}
+            </p>
+          )}
         </div>
         <time className="shrink-0 text-xs text-muted" dateTime={trashed ? n.deletedAt! : n.updatedAt}>
           {trashed ? 'Trashed ' : ''}{new Date(trashed ? n.deletedAt! : n.updatedAt).toLocaleDateString()}
@@ -60,6 +70,7 @@ export function NoteCard({ note: n, folderName, onOpen, onPatch, onTrash, onRest
             </>
           ) : (
             <>
+              <button className="underline" onClick={onOpen} aria-label={`Edit ${n.title || 'untitled item'}`}>Edit</button>
               <button className="underline" onClick={() => onPatch({ pinned: !n.pinned })}>{n.pinned ? 'Unpin' : 'Pin'}</button>
               <button className="underline" onClick={() => onPatch({ archived: !n.archived })}>{n.archived ? 'Unarchive' : 'Archive'}</button>
               <button className="text-red-700 underline" onClick={onTrash}>Delete</button>

@@ -1,8 +1,18 @@
 import { Router } from 'express';
-import { captureUrlSchema, createNoteSchema, listQuerySchema, objectId, updateNoteSchema } from './notes.schema';
+import multer from 'multer';
+import { HttpError } from '../../middleware/errors';
+import { MAX_UPLOAD_BYTES } from './file-extract';
+import { captureUrlSchema, createNoteSchema, listQuerySchema, objectId, updateNoteSchema, uploadFieldsSchema } from './notes.schema';
 import * as notes from './notes.service';
 
 const router = Router();
+
+// Files are kept in memory only long enough to extract their text; nothing is written to disk.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES, files: 1, fields: 5, fieldSize: 2000 },
+  defParamCharset: 'utf8',
+});
 
 const noteId = (id: string) => objectId.parse(id);
 
@@ -20,6 +30,12 @@ router.post('/', async (req, res) => {
 
 router.post('/capture-url', async (req, res) => {
   res.status(201).json(await notes.captureUrl(req.auth!.userId, captureUrlSchema.parse(req.body)));
+});
+
+router.post('/upload', upload.single('file'), async (req, res) => {
+  if (!req.file) throw new HttpError(400, 'Attach a file in the "file" field');
+  const fields = uploadFieldsSchema.parse(req.body ?? {});
+  res.status(201).json(await notes.uploadDocument(req.auth!.userId, req.file, fields));
 });
 
 router.delete('/trash', async (req, res) => {

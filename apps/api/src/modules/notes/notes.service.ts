@@ -2,6 +2,7 @@ import type { FilterQuery, SortOrder } from 'mongoose';
 import { HttpError } from '../../middleware/errors';
 import { Note, type INote } from '../../models/Note';
 import { assertFolderOwned } from '../folders/folders.service';
+import { extractFile } from './file-extract';
 import { fetchUrlMetadata } from './url-metadata';
 import type { CreateNoteInput, ListQuery, UpdateNoteInput } from './notes.schema';
 
@@ -94,7 +95,17 @@ export async function getNote(userId: string, id: string) {
 
 export async function updateNote(userId: string, id: string, input: UpdateNoteInput) {
   if (input.folderId) await assertFolderOwned(userId, input.folderId);
-  const note = await Note.findOneAndUpdate({ _id: id, userId, deletedAt: null }, { $set: input }, { new: true, runValidators: true }).lean();
+  // Merge editable metadata field by field so server-set fields (fileName, pageCount…) survive edits.
+  // An empty string clears that field.
+  const { metadata, ...rest } = input;
+  const $set: Record<string, unknown> = { ...rest };
+  const $unset: Record<string, ''> = {};
+  for (const [key, value] of Object.entries(metadata ?? {})) {
+    if (value) $set[`metadata.${key}`] = value;
+    else $unset[`metadata.${key}`] = '';
+  }
+  const update = Object.keys($unset).length ? { $set, $unset } : { $set };
+  const note = await Note.findOneAndUpdate({ _id: id, userId, deletedAt: null }, update, { new: true, runValidators: true }).lean();
   if (!note) throw notFound();
   return note;
 }
@@ -124,6 +135,31 @@ export async function destroyNote(userId: string, id: string) {
 export async function emptyTrash(userId: string) {
   const result = await Note.deleteMany({ userId, deletedAt: { $ne: null } });
   return { deleted: result.deletedCount };
+}
+
+/** Creates a `document` item from an uploaded file's extracted text. */
+export async function uploadDocument(
+  userId: string,
+  file: { originalname: string; size: number; buffer: Buffer },
+  fields: { folderId: string | null; tags: string[] }
+) {
+  if (fields.folderId) await assertFolderOwned(userId, fields.folderId);
+  const extracted = await extractFile(file.originalname, file.buffer);
+  return Note.create({
+    userId,
+    type: 'document',
+    title: extracted.title,
+    content: extracted.content,
+    tags: fields.tags,
+    folderId: fields.folderId,
+    metadata: {
+      fileName: file.originalname.slice(0, 255),
+      fileSize: file.size,
+      mimeType: extracted.mimeType,
+      pageCount: extracted.pageCount,
+      truncated: extracted.truncated || undefined,
+    },
+  });
 }
 
 /**

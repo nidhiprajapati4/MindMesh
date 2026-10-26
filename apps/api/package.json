@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/modules/notes/notes.schema.test.ts src/modules/notes/url-metadata.test.ts"
+    "test": "tsx --test src/modules/notes/notes.schema.test.ts src/modules/notes/url-metadata.test.ts src/test/api.test.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -16,13 +16,19 @@
     "firebase": "^13.0.0",
     "firebase-admin": "^13.0.0",
     "helmet": "^8.0.0",
+    "mammoth": "^1.13.0",
     "mongoose": "^8.8.0",
+    "multer": "^2.5.0",
+    "pdfjs-dist": "4.8.69",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/multer": "^2.3.0",
     "@types/node": "^22.9.0",
+    "jszip": "^3.10.2",
+    "mongodb-memory-server": "^10.4.3",
     "tsx": "^4.19.0",
     "typescript": "^5.6.3"
   }

@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { connectAuthEmulator, getAuth } from 'firebase/auth';
 
 const app = getApps().length
   ? getApp()
@@ -11,3 +11,9 @@ const app = getApps().length
     });
 
 export const auth = getAuth(app);
+
+// Local testing only: talk to the Firebase Auth emulator instead of the real project.
+const emulatorHost = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST;
+if (emulatorHost && !auth.emulatorConfig) {
+  connectAuthEmulator(auth, `http://${emulatorHost}`, { disableWarnings: true });
+}

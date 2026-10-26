@@ -6,7 +6,21 @@ export const NOTE_TYPES = ['note', 'snippet', 'url', 'idea', 'document'] as cons
 export type NoteType = (typeof NOTE_TYPES)[number];
 export const TYPE_LABELS: Record<NoteType, string> = { note: 'Notes', snippet: 'Snippets', url: 'Links', idea: 'Ideas', document: 'Documents' };
 
-export type NoteMetadata = { language?: string; siteName?: string; description?: string; author?: string };
+/** Fields the user can edit. */
+export type EditableMetadata = { language?: string; siteName?: string; description?: string; author?: string };
+export const EDITABLE_METADATA_KEYS = ['language', 'siteName', 'description', 'author'] as const;
+
+/** Server-set fields for uploaded documents. */
+export type NoteMetadata = EditableMetadata & {
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+  pageCount?: number;
+  truncated?: boolean;
+};
+
+export const UPLOAD_ACCEPT = '.txt,.md,.markdown,.pdf,.docx';
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export type Note = {
   _id: string;
@@ -34,7 +48,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      // FormData sets its own multipart Content-Type (with boundary).
+      ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init.headers,
     },
@@ -49,7 +64,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 /** Only render links the browser can't turn into script execution. */
 export const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url : undefined);
 
-export const hostOf = (url: string) => {
+export const formatBytes = (n: number) =>
+  n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${+(n / 1024 / 1024).toFixed(1)} MB`;
+
+export const hostOf =(url: string) => {
   try {
     return new URL(url).hostname.replace(/^www\./, '');
   } catch {

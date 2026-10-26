@@ -10,7 +10,7 @@ import notesRouter from './modules/notes/notes.routes';
 export const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: env.CLIENT_ORIGIN }));
+app.use(cors({ origin: env.CLIENT_ORIGIN.split(',').map((o) => o.trim()) }));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (_req, res) => {

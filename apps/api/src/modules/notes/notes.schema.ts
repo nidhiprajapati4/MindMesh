@@ -55,6 +55,19 @@ export const createNoteSchema = z
 
 export const updateNoteSchema = z.object(noteFields).partial().strict();
 
+/** Multipart text fields that accompany an uploaded file. */
+export const uploadFieldsSchema = z
+  .object({
+    folderId: z.preprocess((v) => (v === '' ? null : v), objectId.nullable().default(null)),
+    tags: z
+      .string()
+      .max(1000)
+      .default('')
+      .transform((s) => s.split(',').map((t) => t.trim()).filter(Boolean))
+      .pipe(tags),
+  })
+  .strict();
+
 export const captureUrlSchema = z
   .object({
     url: httpUrl,
