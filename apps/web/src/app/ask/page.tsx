@@ -4,14 +4,14 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { AnswerView, type AnswerTurn } from '@/components/AnswerView';
-import { api, ApiError, type Conversation, type ConversationSummary } from '@/lib/api';
+import { api, ApiError, errorMessage, type Conversation, type ConversationSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { streamAsk } from '@/lib/sse';
 
 type Usage = { embedTokens: number; genTokens: number; budget: number };
 type AnswerSetup = { available: boolean; provider: 'anthropic' | 'quotes' | 'fake'; model: string };
 
-const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
+const message = errorMessage;
 
 function AskPage() {
   const { user, loading } = useAuth();

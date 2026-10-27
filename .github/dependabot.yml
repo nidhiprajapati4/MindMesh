@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Pinned on purpose (root package.json "overrides"): newer onnxruntime-node and sharp builds
+      # need a newer Visual C++ runtime than some Windows machines have. Update them by hand and
+      # test on Windows first.
+      - dependency-name: onnxruntime-node
+      - dependency-name: sharp
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

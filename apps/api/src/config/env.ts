@@ -29,6 +29,19 @@ const schema = z
     ANTHROPIC_API_KEY: z.string().optional(),
     ANSWER_PROVIDER: z.enum(['anthropic', 'quotes', 'fake']).optional(),
     ANSWER_MODEL: z.string().default('claude-opus-5-5'),
+
+    // Phase 7: operations.
+    // Logs: json (one object per line, for hosting log viewers) or pretty (readable locally).
+    LOG_FORMAT: z.enum(['json', 'pretty']).optional(),
+    // Tests are silent unless this is set.
+    LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).optional(),
+    // Requests per minute for each signed-in user (and, before sign-in, each IP address).
+    RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(300),
+    // Number of proxies in front of the API (1 on Render), so the client's IP is read correctly.
+    TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+    // separate = run `npm run worker` as its own process; inline = run it inside the API (free
+    // hosting without background workers, e.g. Render's free plan).
+    RUN_WORKER: z.enum(['separate', 'inline']).default('separate'),
   })
   .superRefine((e, ctx) => {
     if (e.FIREBASE_AUTH_EMULATOR_HOST && e.NODE_ENV === 'production') {

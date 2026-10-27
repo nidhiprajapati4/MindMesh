@@ -4,6 +4,10 @@ const MODEL = 'Xenova/all-MiniLM-L6-v2';
 
 type Extractor = (texts: string[], opts: { pooling: 'mean'; normalize: boolean }) => Promise<{ tolist(): number[][] }>;
 let extractor: Promise<Extractor> | null = null;
+let loaded = false;
+
+/** For the readiness check: whether the model is in memory yet (it loads on first use). */
+export const localModelState = () => (loaded ? 'loaded' : extractor ? 'loading' : 'not loaded');
 
 /**
  * Free, on-device sentence embeddings (384 dims). The model (~23 MB) downloads once on first use.
@@ -12,6 +16,10 @@ let extractor: Promise<Extractor> | null = null;
 function load(): Promise<Extractor> {
   extractor ??= import('@huggingface/transformers')
     .then(({ pipeline }) => pipeline('feature-extraction', MODEL, { dtype: 'q8' }) as unknown as Promise<Extractor>)
+    .then((x) => {
+      loaded = true;
+      return x;
+    })
     .catch((e) => {
       extractor = null; // allow a later retry
       throw new Error(`Could not load the local embedding model: ${(e as Error).message}`);

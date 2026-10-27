@@ -238,6 +238,6 @@ describe('Validation and limits', () => {
     await Usage.updateOne({ userId: userC, day: new Date().toISOString().slice(0, 10) }, { $set: { embedTokens: 200_000 } }, { upsert: true });
     const r = await C.post('/api/organize/suggest', { title: 'Sourdough bread baking', content: 'Long enough draft text to be embedded for suggestions.' });
     assert.equal(r.status, 429);
-    assert.equal(r.body.code, 'QUOTA_EXCEEDED');
+    assert.equal(r.body.error.code, 'QUOTA_EXCEEDED');
   });
 });

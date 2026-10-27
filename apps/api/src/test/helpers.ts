@@ -24,6 +24,8 @@ export async function startTestApi() {
     // Never call a paid model from tests, even if apps/api/.env has a real key.
     ANSWER_PROVIDER: 'fake',
     ANTHROPIC_API_KEY: '',
+    // Tests make many requests quickly; phase7.test.ts lowers the limits where it checks them.
+    RATE_LIMIT_PER_MINUTE: '100000',
   });
   const { adminAuth } = await import('../config/firebase.js');
   // The Admin SDK would call the Auth emulator over HTTP; check the same claims locally instead.

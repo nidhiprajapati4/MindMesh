@@ -291,7 +291,7 @@ describe('Search', () => {
     aiClient.setEmbeddingProvider({ ...fakeProvider, embed: async () => { throw new Error('model offline'); } });
     const semantic = await search(A, 'revenue', 'semantic');
     assert.equal(semantic.status, 503);
-    assert.equal(semantic.body.code, 'SEMANTIC_UNAVAILABLE');
+    assert.equal(semantic.body.error.code, 'SEMANTIC_UNAVAILABLE');
     const hybrid = await search(A, 'revenue');
     assert.equal(hybrid.status, 200);
     assert.deepEqual(titles(hybrid), ['Quarterly report']);
@@ -316,7 +316,7 @@ describe('Daily AI budget', () => {
 
     const semantic = await search(C, 'budget', 'semantic');
     assert.equal(semantic.status, 429);
-    assert.equal(semantic.body.code, 'QUOTA_EXCEEDED');
+    assert.equal(semantic.body.error.code, 'QUOTA_EXCEEDED');
 
     const hybrid = await search(C, 'budget');
     assert.equal(hybrid.status, 200);

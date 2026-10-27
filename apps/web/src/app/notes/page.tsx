@@ -5,8 +5,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { NoteCard } from '@/components/NoteCard';
 import { NoteEditor, blankDraft, type Draft } from '@/components/NoteEditor';
 import { Sidebar, type Filters } from '@/components/Sidebar';
-import {
-  api,
+import { api, errorMessage,
   EDITABLE_METADATA_KEYS,
   isIndexing,
   TYPE_LABELS,
@@ -45,7 +44,7 @@ const savedMode = (): SearchMode => {
 };
 
 const toTags = (s: string) => [...new Set(s.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean))];
-const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
+const message = errorMessage;
 const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
 
@@ -78,6 +77,13 @@ export default function NotesPage() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  // Phones: the sidebar is a drawer opened from the top bar.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+    menuButtonRef.current?.focus();
+  }, []);
 
   const [filters, setFilters] = useState<Filters>({ view: 'active', type: '', folder: '', tag: '' });
   const [q, setQ] = useState('');
@@ -396,17 +402,35 @@ export default function NotesPage() {
 
   return (
     <div className="mx-auto grid min-h-screen max-w-6xl gap-6 px-4 py-6 md:grid-cols-[16rem_1fr]">
+      <div className="flex items-center gap-2 md:hidden">
+        <button ref={menuButtonRef} className="btn-ghost" onClick={() => setMenuOpen(true)} aria-expanded={menuOpen} aria-controls="sidebar">
+          ☰ Menu
+        </button>
+        <span className="min-w-0 flex-1 truncate font-serif text-lg font-semibold">{heading}</span>
+        <button className="btn-primary" onClick={newNote}>New</button>
+      </div>
       <Sidebar
         filters={filters}
-        onChange={(f) => setFilters((prev) => ({ ...prev, ...f }))}
+        onChange={(f) => {
+          setFilters((prev) => ({ ...prev, ...f }));
+          setMenuOpen(false);
+        }}
         folders={folders}
         tags={tags}
         onCreateFolder={createFolder}
         onRenameFolder={renameFolder}
         onDeleteFolder={deleteFolder}
-        onNewNote={newNote}
-        onUpload={newUpload}
+        onNewNote={() => {
+          setMenuOpen(false);
+          newNote();
+        }}
+        onUpload={() => {
+          setMenuOpen(false);
+          newUpload();
+        }}
         onLogout={logout}
+        open={menuOpen}
+        onClose={closeMenu}
       />
 
       <main className="flex min-w-0 flex-col gap-4">

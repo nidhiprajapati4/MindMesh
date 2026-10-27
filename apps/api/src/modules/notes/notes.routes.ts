@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { HttpError } from '../../middleware/errors';
+import { apiLimits } from '../../middleware/rate-limit';
 import { reprocess } from '../ai-processing/jobs';
 import { MAX_UPLOAD_BYTES } from './file-extract';
 import { captureUrlSchema, createNoteSchema, listQuerySchema, objectId, updateNoteSchema, uploadFieldsSchema } from './notes.schema';
@@ -29,11 +30,11 @@ router.post('/', async (req, res) => {
   res.status(201).json(await notes.createNote(req.auth!.userId, createNoteSchema.parse(req.body)));
 });
 
-router.post('/capture-url', async (req, res) => {
+router.post('/capture-url', apiLimits.heavy, async (req, res) => {
   res.status(201).json(await notes.captureUrl(req.auth!.userId, captureUrlSchema.parse(req.body)));
 });
 
-router.post('/upload', upload.single('file'), async (req, res) => {
+router.post('/upload', apiLimits.heavy, upload.single('file'), async (req, res) => {
   if (!req.file) throw new HttpError(400, 'Attach a file in the "file" field');
   const fields = uploadFieldsSchema.parse(req.body ?? {});
   res.status(201).json(await notes.uploadDocument(req.auth!.userId, req.file, fields));

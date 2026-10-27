@@ -13,6 +13,7 @@ import { quotesAnswerProvider } from './generation/quotes';
 import type { AnswerEvent, AnswerProvider, AnswerRequest, AnswerResult } from './generation/types';
 import { assertWithinBudget, recordUsage } from './quota';
 import { estimateTokens } from './tokens';
+import { log } from './logger';
 
 export const TIMEOUT_MS = 20_000;
 export const MAX_RETRIES = 3;
@@ -83,14 +84,11 @@ export async function embed(texts: string[], ctx: { userId: string; purpose: 'in
   }
   await recordUsage(ctx.userId, { embed: tokens });
 
-  if (env.NODE_ENV !== 'test') {
-    console.log(
-      JSON.stringify({
-        evt: 'ai.embed', userId: ctx.userId, purpose: ctx.purpose, provider: p.name, model: p.model, inputs: texts.length,
-        tokens, costUsd: +((tokens / 1e6) * p.costPerMillionTokens).toFixed(6), ms: Date.now() - started, attempts,
-      })
-    );
-  }
+  // Debug level: suggestions embed on every pause in typing, which would flood the logs.
+  log.debug('ai.embed', {
+    userId: ctx.userId, purpose: ctx.purpose, provider: p.name, model: p.model, inputs: texts.length,
+    tokens, costUsd: +((tokens / 1e6) * p.costPerMillionTokens).toFixed(6), ms: Date.now() - started, attempts,
+  });
   return { vectors, model: p.model, dims: p.dims, tokens };
 }
 
@@ -176,14 +174,10 @@ export async function generateAnswer(req: AnswerRequest, ctx: GenerateContext): 
       );
       const costUsd = +((result.inputTokens * p.costPerMillion.input + result.outputTokens * p.costPerMillion.output) / 1e6).toFixed(6);
       await recordUsage(ctx.userId, { gen: result.inputTokens + result.outputTokens });
-      if (env.NODE_ENV !== 'test') {
-        console.log(
-          JSON.stringify({
-            evt: 'ai.answer', userId: ctx.userId, provider: p.name, model: result.model, docs: req.docs.length,
-            inputTokens: result.inputTokens, outputTokens: result.outputTokens, costUsd, ms: Date.now() - started, attempts: attempt,
-          })
-        );
-      }
+      log.info('ai.answer', {
+        userId: ctx.userId, provider: p.name, model: result.model, docs: req.docs.length,
+        inputTokens: result.inputTokens, outputTokens: result.outputTokens, costUsd, ms: Date.now() - started, attempts: attempt,
+      });
       return { ...result, costUsd, ms: Date.now() - started };
     } catch (e) {
       const err = controller.signal.aborted && !ctx.signal?.aborted ? controller.signal.reason : e;

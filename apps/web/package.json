@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "export": "next build",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "d3-force": "3.0.0",

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { apiLimits } from '../../middleware/rate-limit';
 import { objectId } from '../notes/notes.schema';
 import * as organize from './organize.service';
 
@@ -23,7 +24,7 @@ const suggestSchema = z
   .strict();
 
 // Tag, folder and duplicate suggestions for a draft (new or being edited).
-router.post('/suggest', async (req, res) => {
+router.post('/suggest', apiLimits.suggest, async (req, res) => {
   res.json(await organize.suggestForDraft(req.auth!.userId, suggestSchema.parse(req.body)));
 });
 

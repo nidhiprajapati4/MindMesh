@@ -1,32 +1,18 @@
 import { Router } from 'express';
 import { HttpError } from '../../middleware/errors';
+import { createLimiter } from '../../middleware/rate-limit';
+import { requestContext } from '../../middleware/request-context';
 import { answerSetup } from '../../platform/ai-client';
+import { log } from '../../platform/logger';
 import { objectId } from '../notes/notes.schema';
 import { askSchema, feedbackSchema, renameConversationSchema } from './ask.schema';
 import * as ask from './ask.service';
 
 /** Per-user sliding window: each question can cost real money, so bursts are capped. */
-export const ASK_RATE_LIMIT = { max: 10, windowMs: 60_000 };
-const recent = new Map<string, number[]>();
-
-let lastSweep = Date.now();
-
-function takeRateLimitSlot(userId: string) {
-  const now = Date.now();
-  // Forget users who haven't asked within the window, so the map doesn't grow forever.
-  if (now - lastSweep > ASK_RATE_LIMIT.windowMs) {
-    for (const [id, times] of recent) if (now - (times.at(-1) ?? 0) >= ASK_RATE_LIMIT.windowMs) recent.delete(id);
-    lastSweep = now;
-  }
-  const times = (recent.get(userId) ?? []).filter((t) => now - t < ASK_RATE_LIMIT.windowMs);
-  if (times.length >= ASK_RATE_LIMIT.max) throw new HttpError(429, 'Too many questions in a short time. Wait a minute and try again.', 'RATE_LIMITED');
-  times.push(now);
-  recent.set(userId, times);
-}
+const askLimiter = createLimiter('ask', { max: 10, windowMs: 60_000, message: 'Too many questions in a short time. Wait a minute and try again.' });
 
 /** Tests only. */
-export const resetAskRateLimit = () => recent.clear();
-export const rateLimitedUsers = () => recent.size;
+export const resetAskRateLimit = () => askLimiter.reset();
 
 export const askRouter = Router();
 
@@ -39,7 +25,7 @@ askRouter.get('/status', (_req, res) => {
 askRouter.post('/', async (req, res) => {
   const userId = req.auth!.userId;
   const input = askSchema.parse(req.body);
-  takeRateLimitSlot(userId);
+  askLimiter.take(`user:${userId}`); // after validation, so a rejected question doesn't use up a slot
   // Plain HTTP errors (404, 429 budget…) can still be returned up to this point.
   const prepared = await ask.prepareAsk(userId, input);
 
@@ -61,8 +47,8 @@ askRouter.post('/', async (req, res) => {
   try {
     await ask.runAsk(userId, input, prepared, send, controller.signal);
   } catch (e) {
-    console.error('Ask failed after streaming started', e);
-    send('error', { code: 'ANSWER_FAILED', message: "Couldn't write an answer right now. Please try again." });
+    log.error('ask_failed_mid_stream', { err: e });
+    send('error', { code: 'ANSWER_FAILED', message: "Couldn't write an answer right now. Please try again.", requestId: requestContext()?.requestId });
   } finally {
     res.end();
   }

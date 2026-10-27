@@ -1,0 +1,56 @@
+name: CI
+
+# Every push and pull request: typecheck both apps, run the API tests, and build the web app
+# (including the static export deployed to Firebase Hosting). No secrets are needed: the tests
+# use an in-memory database and fake models.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MONGOMS_DOWNLOAD_DIR: /home/runner/.cache/mongodb-binaries
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # The in-memory MongoDB used by the tests downloads its binary once; keep it between runs.
+      - uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: API tests
+        run: npm test -w apps/api
+
+      - name: Web build and static export
+        run: npm run build:web
+        env:
+          # Placeholder public settings: the build only needs them to exist.
+          NEXT_PUBLIC_API_URL: https://api.example.com
+          NEXT_PUBLIC_FIREBASE_API_KEY: ci-placeholder
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci-placeholder
+          NEXT_PUBLIC_FIREBASE_APP_ID: ci-placeholder
+
+      - name: API build
+        run: npm run build -w apps/api

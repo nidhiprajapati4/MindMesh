@@ -1,12 +1,36 @@
-import type { ErrorRequestHandler } from 'express';
+import type { ErrorRequestHandler, RequestHandler, Response } from 'express';
 import { MulterError } from 'multer';
 import { ZodError } from 'zod';
+import { log } from '../platform/logger';
+import { requestContext } from './request-context';
+
+/** The machine-readable code for an HTTP status when no more specific one is given. */
+const DEFAULT_CODES: Record<number, string> = {
+  400: 'BAD_REQUEST',
+  401: 'UNAUTHORIZED',
+  403: 'FORBIDDEN',
+  404: 'NOT_FOUND',
+  409: 'CONFLICT',
+  413: 'PAYLOAD_TOO_LARGE',
+  415: 'UNSUPPORTED_MEDIA_TYPE',
+  422: 'UNPROCESSABLE',
+  429: 'RATE_LIMITED',
+  500: 'INTERNAL',
+  503: 'UNAVAILABLE',
+};
 
 export class HttpError extends Error {
-  /** `code` is a stable machine-readable reason (e.g. QUOTA_EXCEEDED) sent alongside the message. */
-  constructor(public status: number, message: string, public code?: string) {
+  /** A stable machine-readable reason (e.g. QUOTA_EXCEEDED); defaults from the status. */
+  public code: string;
+  constructor(public status: number, message: string, code?: string) {
     super(message);
+    this.code = code ?? DEFAULT_CODES[status] ?? 'ERROR';
   }
+}
+
+/** Every error response: `{ error: { code, message, requestId, details? } }`. */
+export function sendError(res: Response, status: number, code: string, message: string, details?: unknown) {
+  res.status(status).json({ error: { code, message, requestId: requestContext()?.requestId, ...(details === undefined ? {} : { details }) } });
 }
 
 const MULTER_MESSAGES: Partial<Record<MulterError['code'], [number, string]>> = {
@@ -16,19 +40,23 @@ const MULTER_MESSAGES: Partial<Record<MulterError['code'], [number, string]>> = 
 };
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  if (res.headersSent) return; // e.g. a stream that already started; nothing more can be sent
   if (err instanceof ZodError) {
-    res.status(400).json({ error: 'Validation failed', details: err.flatten() });
+    sendError(res, 400, 'VALIDATION_FAILED', 'Validation failed', err.flatten());
   } else if (err instanceof HttpError) {
-    res.status(err.status).json(err.code ? { error: err.message, code: err.code } : { error: err.message });
+    sendError(res, err.status, err.code, err.message);
   } else if (err instanceof MulterError) {
     const [status, message] = MULTER_MESSAGES[err.code] ?? [400, err.message];
-    res.status(status).json({ error: message });
+    sendError(res, status, DEFAULT_CODES[status], message);
   } else if (err?.type === 'entity.parse.failed') {
-    res.status(400).json({ error: 'Malformed JSON body' });
+    sendError(res, 400, 'MALFORMED_JSON', 'Malformed JSON body');
   } else if (err?.type === 'entity.too.large') {
-    res.status(413).json({ error: 'Request body is too large' });
+    sendError(res, 413, 'PAYLOAD_TOO_LARGE', 'Request body is too large');
   } else {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    log.error('unhandled_error', { err });
+    sendError(res, 500, 'INTERNAL', 'Something went wrong on our side. Please try again.');
   }
 };
+
+/** Unknown routes get the same error shape as everything else. */
+export const notFoundHandler: RequestHandler = (_req, res) => sendError(res, 404, 'NOT_FOUND', 'No such endpoint');

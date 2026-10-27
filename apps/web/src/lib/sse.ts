@@ -1,10 +1,10 @@
-import { ApiError, apiFetch, type AnswerSource, type Turn } from './api';
+import { apiErrorFrom, apiFetch, type AnswerSource, type Turn } from './api';
 
 export type AskEvent =
   | { event: 'start'; data: { conversationId: string; sources: AnswerSource[] } }
   | { event: 'text'; data: { text: string } }
   | { event: 'citation'; data: { source: number; quote: string } }
-  | { event: 'error'; data: { code: string; message: string } }
+  | { event: 'error'; data: { code: string; message: string; requestId?: string } }
   | { event: 'done'; data: { conversationId: string; turnIndex: number; turn: Turn } };
 
 /**
@@ -15,10 +15,7 @@ export type AskEvent =
  */
 export async function streamAsk(body: { question: string; conversationId?: string }, onEvent: (e: AskEvent) => void, signal: AbortSignal) {
   const res = await apiFetch('/api/ask', { method: 'POST', body: JSON.stringify(body), signal });
-  if (!res.ok || !res.body) {
-    const err = await res.json().catch(() => ({}));
-    throw new ApiError(err.error ?? `Request failed (${res.status})`, res.status, err.code);
-  }
+  if (!res.ok || !res.body) throw await apiErrorFrom(res);
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';

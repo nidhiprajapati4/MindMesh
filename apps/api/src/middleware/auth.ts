@@ -1,6 +1,8 @@
 import type { RequestHandler } from 'express';
 import { adminAuth } from '../config/firebase';
 import { User } from '../models/User';
+import { sendError } from './errors';
+import { requestContext } from './request-context';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -14,7 +16,7 @@ declare global {
 export const requireAuth: RequestHandler = async (req, res, next) => {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Missing bearer token' });
+    sendError(res, 401, 'UNAUTHORIZED', 'Sign in to continue (missing bearer token)');
     return;
   }
   try {
@@ -31,8 +33,10 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
       { upsert: true, new: true }
     );
     req.auth = { userId: user.id, uid: decoded.uid };
+    const ctx = requestContext();
+    if (ctx) ctx.userId = user.id; // for the request log line
     next();
   } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
+    sendError(res, 401, 'UNAUTHORIZED', 'Your session has expired. Sign in again.');
   }
 };

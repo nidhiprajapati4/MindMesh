@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { NOTE_TYPES, TYPE_LABELS, type Folder, type FolderList, type NoteType } from '@/lib/api';
 
 export type View = 'active' | 'archived' | 'trash';
@@ -19,7 +19,25 @@ type Props = {
   onNewNote: () => void;
   onUpload: () => void;
   onLogout: () => void;
+  /** Phones: the sidebar is a drawer, shown while `open`. */
+  open: boolean;
+  onClose: () => void;
 };
+
+const PHONE = '(max-width: 767px)';
+
+/** Whether the screen is phone-sized (the sidebar is then a drawer). */
+function usePhone() {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(PHONE);
+    const update = () => setPhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return phone;
+}
 
 const item = (active: boolean) =>
   `flex min-w-0 flex-1 items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm ${active ? 'bg-accent text-white' : 'hover:bg-white'}`;
@@ -44,7 +62,19 @@ const FolderIcon = () => (
   <svg {...svgProps} className="shrink-0"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
 );
 
-export function Sidebar({ filters, onChange, folders, tags, onCreateFolder, onRenameFolder, onDeleteFolder, onNewNote, onUpload, onLogout }: Props) {
+export function Sidebar({ filters, onChange, folders, tags, onCreateFolder, onRenameFolder, onDeleteFolder, onNewNote, onUpload, onLogout, open, onClose }: Props) {
+  const phone = usePhone();
+  const asideRef = useRef<HTMLElement>(null);
+  const drawerOpen = phone && open;
+
+  // Drawer: focus moves in when it opens; Esc closes it.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    asideRef.current?.querySelector<HTMLElement>('button, a, input')?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [drawerOpen, onClose]);
   const [newFolder, setNewFolder] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [folderError, setFolderError] = useState('');
@@ -94,7 +124,19 @@ export function Sidebar({ filters, onChange, folders, tags, onCreateFolder, onRe
   const errorLine = folderError && <p role="alert" className="px-1 pt-1 text-xs text-red-700">{folderError}</p>;
 
   return (
-    <aside className="flex flex-col gap-4 md:sticky md:top-6 md:max-h-[calc(100vh-3rem)] md:overflow-y-auto md:pr-1">
+    <>
+    {drawerOpen && <div className="fixed inset-0 z-30 bg-ink/40 md:hidden" onClick={onClose} aria-hidden />}
+    <aside
+      ref={asideRef}
+      id="sidebar"
+      aria-label="Menu"
+      inert={phone && !open}
+      className={`fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col gap-4 overflow-y-auto bg-paper p-4 shadow-xl transition-transform ${open ? 'translate-x-0' : '-translate-x-full'}
+        md:sticky md:inset-auto md:top-6 md:z-auto md:w-auto md:max-w-none md:max-h-[calc(100vh-3rem)] md:translate-x-0 md:bg-transparent md:p-0 md:pr-1 md:shadow-none md:transition-none`}
+    >
+      {phone && (
+        <button className="self-end rounded px-2 py-1 text-xl leading-none text-muted hover:bg-white" onClick={onClose} aria-label="Close menu">×</button>
+      )}
       <h1 className="font-serif text-3xl font-semibold">MindMesh</h1>
       <div className="flex flex-col gap-2">
         <button className="btn-primary" onClick={onNewNote}>
@@ -195,5 +237,6 @@ export function Sidebar({ filters, onChange, folders, tags, onCreateFolder, onRe
       <Divider />
       <button className="btn-ghost" onClick={onLogout}>Sign out</button>
     </aside>
+    </>
   );
 }

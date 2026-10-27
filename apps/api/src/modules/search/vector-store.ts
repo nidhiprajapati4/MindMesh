@@ -4,6 +4,7 @@ import { Chunk } from '../../models/Chunk';
 import { NoteVector } from '../../models/NoteVector';
 import { embeddingProvider } from '../../platform/ai-client';
 import { cosine, topK } from './rank';
+import { log } from '../../platform/logger';
 
 export const VECTOR_INDEX = 'chunk_vector_index';
 export const NOTE_VECTOR_INDEX = 'note_vector_index';
@@ -32,14 +33,14 @@ async function ensureVectorIndex(m: typeof Chunk | typeof NoteVector, name: stri
   const [existing] = (await coll.listSearchIndexes(name).toArray()) as { latestDefinition?: { fields?: IndexField[] } }[];
   if (!existing) {
     await coll.createSearchIndex({ name, type: 'vectorSearch', definition });
-    console.log(`Created Atlas vector index ${name} (it becomes queryable within a minute or two)`);
+    log.info('atlas_index_created', { index: name, note: 'queryable within a minute or two' });
     return;
   }
   const fields = existing.latestDefinition?.fields ?? [];
   const dims = fields.find((f) => f.type === 'vector')?.numDimensions;
   if (dims !== definition.fields[0].numDimensions || !fields.some((f) => f.path === 'model')) {
     await coll.updateSearchIndex(name, definition);
-    console.log(`Updated Atlas vector index ${name}`);
+    log.info('atlas_index_updated', { index: name });
   }
 }
 
@@ -61,7 +62,7 @@ export async function initVectorBackend() {
   } catch (e) {
     if (env.VECTOR_BACKEND === 'atlas') throw e;
     backend = 'memory';
-    if (env.NODE_ENV !== 'test') console.log(`Atlas Vector Search unavailable (${(e as Error).message}); using in-memory search`);
+    log.warn('atlas_vector_search_unavailable', { reason: (e as Error).message, fallback: 'in-memory search' });
   }
   return backend;
 }

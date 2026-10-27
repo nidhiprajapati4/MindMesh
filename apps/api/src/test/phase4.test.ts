@@ -191,13 +191,15 @@ describe('Failures and limits', () => {
     await Usage.updateOne({ userId: userC, day: new Date().toISOString().slice(0, 10) }, { $set: { genTokens: 200_000 } }, { upsert: true });
     const r = await ask(emulatorToken('p4-user-c'), { question: 'anything at all' });
     assert.equal(r.status, 429);
-    assert.equal(r.json.code, 'QUOTA_EXCEEDED');
+    assert.equal(r.json.error.code, 'QUOTA_EXCEEDED');
   });
 
   it('ASK-12 a model failure streams a friendly error and saves the turn as failed', async () => {
     ai.setAnswerProvider({ ...fakeAnswerProvider, answer: async () => { throw new Error('upstream exploded'); } });
     const r = await ask(tokenA, { question: 'network retries' });
-    assert.deepEqual(ev(r.events, 'error'), { code: 'ANSWER_FAILED', message: "Couldn't write an answer right now. Please try again." });
+    const { requestId, ...error } = ev(r.events, 'error');
+    assert.deepEqual(error, { code: 'ANSWER_FAILED', message: "Couldn't write an answer right now. Please try again." });
+    assert.match(requestId, /^[0-9a-f-]{36}$/, 'the error names its request, for support');
     const done = ev(r.events, 'done');
     assert.equal(done.turn.status, 'error');
     assert.ok(!JSON.stringify(r.events).includes('exploded'), 'internal error text leaked to the client');
@@ -242,7 +244,7 @@ describe('Failures and limits', () => {
     for (let i = 0; i < 10; i++) assert.equal((await ask(tokenA, { question: `volcano ${i}` })).status, 200);
     const r = await ask(tokenA, { question: 'one too many' });
     assert.equal(r.status, 429);
-    assert.equal(r.json.code, 'RATE_LIMITED');
+    assert.equal(r.json.error.code, 'RATE_LIMITED');
     assert.equal((await ask(tokenB, { question: 'volcano' })).status, 200, 'other users are unaffected');
   });
 });
@@ -277,7 +279,7 @@ describe('Robustness', () => {
     try {
       const r = await ask(tokenA, { question: 'network retries' });
       assert.equal(r.status, 503);
-      assert.equal(r.json.code, 'SEMANTIC_UNAVAILABLE');
+      assert.equal(r.json.error.code, 'SEMANTIC_UNAVAILABLE');
       assert.ok(!JSON.stringify(r.json).includes('model file missing'), 'internal error leaked');
     } finally {
       ai.setEmbeddingProvider(null);

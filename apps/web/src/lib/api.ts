@@ -58,33 +58,78 @@ export const isIndexing = (n: Note) => n.processing?.status === 'pending' || n.p
 export type Folder = { _id: string; name: string; color: string | null; noteCount: number };
 export type FolderList = { folders: Folder[]; unfiledCount: number };
 
+/**
+ * Requests slower than this count as "slow". On free hosting the API sleeps when idle and takes
+ * up to a minute to wake, so the app says so instead of just spinning.
+ */
+const SLOW_MS = 4000;
+let slowRequests = 0;
+const slowListeners = new Set<(count: number) => void>();
+const setSlow = (delta: number) => {
+  slowRequests += delta;
+  slowListeners.forEach((fn) => fn(slowRequests));
+};
+/** Calls `fn` with the number of slow requests in flight now and whenever it changes. */
+export function watchSlowRequests(fn: (count: number) => void) {
+  slowListeners.add(fn);
+  fn(slowRequests);
+  return () => void slowListeners.delete(fn);
+}
+
 /** Sends a request to the API with the signed-in user's token; returns the raw response. */
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const token = await auth.currentUser?.getIdToken();
-  return fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      // FormData sets its own multipart Content-Type (with boundary).
-      ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init.headers,
-    },
-  });
+  let slow = false;
+  const timer = setTimeout(() => {
+    slow = true;
+    setSlow(1);
+  }, SLOW_MS);
+  try {
+    return await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers: {
+        // FormData sets its own multipart Content-Type (with boundary).
+        ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
+      },
+    });
+  } finally {
+    clearTimeout(timer);
+    if (slow) setSlow(-1);
+  }
 }
 
-/** Error carrying the API's machine-readable `code` (e.g. QUOTA_EXCEEDED) when it sent one. */
+/**
+ * An error from the API: its message, machine-readable `code` (e.g. QUOTA_EXCEEDED) and the
+ * `requestId` that identifies the request in the server logs, for support.
+ */
 export class ApiError extends Error {
-  constructor(message: string, public status: number, public code?: string) {
+  constructor(message: string, public status: number, public code?: string, public requestId?: string) {
     super(message);
   }
 }
 
+/** Builds an ApiError from a failed response (`{ error: { code, message, requestId } }`). */
+export async function apiErrorFrom(res: Response): Promise<ApiError> {
+  const body = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string; requestId?: string } };
+  const requestId = body.error?.requestId ?? res.headers.get('x-request-id') ?? undefined;
+  return new ApiError(body.error?.message ?? `Request failed (${res.status})`, res.status, body.error?.code, requestId);
+}
+
+/**
+ * Text to show for a failed request. Server-side failures get a short reference (the start of
+ * the request id, which finds the request in the server logs); network failures say why.
+ */
+export function errorMessage(e: unknown, fallback: string): string {
+  if (e instanceof ApiError) return e.status >= 500 && e.requestId ? `${e.message} (Reference: ${e.requestId.slice(0, 8)})` : e.message;
+  if (e instanceof TypeError) return "Can't reach the server. Check your connection and try again; if it was idle, it may still be waking up.";
+  return e instanceof Error ? e.message : fallback;
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await apiFetch(path, init);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new ApiError(body.error ?? `Request failed (${res.status})`, res.status, body.code);
-  }
+  if (!res.ok) throw await apiErrorFrom(res);
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 

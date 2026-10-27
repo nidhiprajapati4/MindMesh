@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { api, type DuplicatePairs, type NoteBrief } from '@/lib/api';
+import { api, errorMessage, type DuplicatePairs, type NoteBrief } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
-const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
+const message = errorMessage;
 
 /** Likely duplicate pairs among your notes, side by side, to open or trash either one. */
 export default function DuplicatesPage() {

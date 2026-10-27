@@ -7,6 +7,7 @@ import {
   NOTE_TYPES,
   UPLOAD_ACCEPT,
   api,
+  errorMessage,
   formatBytes,
   linkKey,
   type EditableMetadata,
@@ -138,7 +139,7 @@ export function NoteEditor({ draft, folders, saving, error, onChange, onSave, on
       const n = await api<Note>('/api/notes', { method: 'POST', body: JSON.stringify({ title, folderId: draft.folderId || null }) });
       onOpenNote(n._id);
     } catch (e) {
-      setLinkError(e instanceof Error ? e.message : 'Could not create the note');
+      setLinkError(errorMessage(e, 'Could not create the note'));
     }
   };
 

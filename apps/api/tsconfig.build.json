@@ -1,0 +1,5 @@
+{
+  // What `npm run build` compiles for production: the app without its tests.
+  "extends": "./tsconfig.json",
+  "exclude": ["src/test", "src/**/*.test.ts"]
+}

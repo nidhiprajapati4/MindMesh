@@ -1,5 +1,7 @@
 import { Types } from 'mongoose';
 import { HttpError } from '../../middleware/errors';
+import { requestContext } from '../../middleware/request-context';
+import { log } from '../../platform/logger';
 import { Conversation, MAX_TURNS, TURN_STATUSES } from '../../models/Conversation';
 import { Note } from '../../models/Note';
 import { generateAnswer } from '../../platform/ai-client';
@@ -55,7 +57,7 @@ export async function prepareAsk(userId: string, input: AskInput): Promise<Prepa
     sources = await retrieveForQuestion(userId, input.question, previousQuestion);
   } catch (e) {
     if (e instanceof HttpError) throw e; // budget reached etc.
-    console.error('Retrieval for an answer failed', e);
+    log.error('ask_retrieval_failed', { err: e });
     throw new HttpError(503, 'Answers are unavailable right now because search by meaning is down. Keyword search still works.', 'SEMANTIC_UNAVAILABLE');
   }
 
@@ -142,10 +144,10 @@ export async function runAsk(userId: string, input: AskInput, prepared: Prepared
       if (signal.aborted) turn.status = 'stopped';
       else {
         const err = friendlyError(e);
-        if (err.code === 'ANSWER_FAILED') console.error('Answer failed', e);
+        if (err.code === 'ANSWER_FAILED') log.error('answer_failed', { err: e });
         turn.status = 'error';
         turn.error = err.message;
-        send('error', err);
+        send('error', { ...err, requestId: requestContext()?.requestId });
       }
     }
   }

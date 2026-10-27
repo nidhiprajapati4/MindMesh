@@ -7,12 +7,20 @@
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
-    "dev:worker": "npm run dev:worker -w apps/api"
+    "dev:worker": "npm run dev:worker -w apps/api",
+    "typecheck": "npm run typecheck -w apps/api && npm run typecheck -w apps/web",
+    "test": "npm test -w apps/api",
+    "build:api": "npm run build -w apps/api",
+    "build:web": "npm run export -w apps/web",
+    "check": "npm run typecheck && npm test && npm run build:api && npm run build:web"
   },
   "overrides": {
     "onnxruntime-node": "1.19.2",
     "@huggingface/transformers": {
       "sharp": "0.35.5"
     }
+  },
+  "engines": {
+    "node": ">=20 <23"
   }
 }

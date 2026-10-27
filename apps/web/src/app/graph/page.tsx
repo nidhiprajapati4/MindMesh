@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Graph } from '@/components/Graph';
-import { NOTE_TYPES, api, type FolderList, type GraphData, type GraphNode, type NoteType, type TopicList } from '@/lib/api';
+import { NOTE_TYPES, api, errorMessage, type FolderList, type GraphData, type GraphNode, type NoteType, type TopicList } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
-const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
+const message = errorMessage;
 
 // Distinct, readable on white; grey for "none".
 const PALETTE = ['#0F6E7A', '#C2410C', '#7C3AED', '#15803D', '#B91C1C', '#1D4ED8', '#A16207', '#BE185D', '#4D7C0F', '#0369A1', '#9333EA', '#57534E'];

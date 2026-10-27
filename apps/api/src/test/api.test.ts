@@ -401,7 +401,7 @@ describe('File upload', () => {
     assert.equal((await A.upload('broken.docx', Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3]))).status, 422);
     const big = await A.upload('big.txt', Buffer.alloc(10 * 1024 * 1024 + 1, 'a'));
     assert.equal(big.status, 413);
-    assert.match(big.body.error, /10 MB/);
+    assert.match(big.body.error.message, /10 MB/);
   });
 
   it('UPL-09 requires a file in the "file" field', async () => {

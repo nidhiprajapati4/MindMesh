@@ -7,6 +7,7 @@ import { baseFilter, listNotes } from '../notes/notes.service';
 import type { SearchQuery } from './search.schema';
 import { isStrongKeywordHit, rrf } from './rank';
 import { nearestChunks } from './vector-store';
+import { log } from '../../platform/logger';
 
 type LeanNote = INote & { _id: unknown };
 export type MatchedBy = 'keyword' | 'meaning' | 'both';
@@ -97,7 +98,7 @@ export async function search(userId: string, q: SearchQuery) {
       return { mode: q.mode, items: await meaningRanking(userId, q, q.limit) };
     } catch (e) {
       if (isQuota(e)) throw e;
-      console.error('Meaning search failed', e);
+      log.error('meaning_search_failed', { err: e });
       throw new HttpError(503, 'Search by meaning is unavailable right now. Try keyword search.', 'SEMANTIC_UNAVAILABLE');
     }
   }
@@ -106,7 +107,7 @@ export async function search(userId: string, q: SearchQuery) {
   const [keyword, meaning] = await Promise.all([
     keywordRanking(userId, q, CANDIDATES),
     meaningRanking(userId, q, CANDIDATES).catch((e: unknown) => {
-      if (!isQuota(e)) console.error('Meaning search failed', e);
+      if (!isQuota(e)) log.error('meaning_search_failed', { err: e });
       return e;
     }),
   ]);
