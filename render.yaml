@@ -10,9 +10,11 @@ services:
     region: singapore
     branch: main
     # Dev dependencies (TypeScript, tsx) are needed to build; the model is downloaded now so the
-    # server doesn't fetch it again each time it wakes up.
-    buildCommand: npm ci --include=dev && npm run build -w apps/api && npm run prefetch-model -w apps/api
-    startCommand: node apps/api/dist/index.js
+    # server doesn't fetch it again each time it wakes up. NODE_OPTIONS is cleared for the build:
+    # the TypeScript compiler needs about 430 MB, more than the server's memory cap below.
+    buildCommand: unset NODE_OPTIONS && npm ci --include=dev && npm run build -w apps/api && npm run prefetch-model -w apps/api
+    # The free plan has 512 MB; the API with the model in memory peaks around 260 MB.
+    startCommand: node --max-old-space-size=320 apps/api/dist/index.js
     healthCheckPath: /ready
     autoDeploy: true
     envVars:
@@ -20,9 +22,6 @@ services:
         value: production
       - key: NODE_VERSION
         value: "20"
-      # The free plan has 512 MB; the API with the model in memory peaks around 260 MB.
-      - key: NODE_OPTIONS
-        value: --max-old-space-size=320
       # Free Render has no background workers, so the worker loop runs inside the API.
       - key: RUN_WORKER
         value: inline
