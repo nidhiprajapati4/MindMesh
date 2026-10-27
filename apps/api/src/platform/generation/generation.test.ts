@@ -141,6 +141,37 @@ describe('Answer generation (ai-client)', () => {
     assert.equal(calls(), 1);
   });
 
+  it('GEN-09 a stopped answer still counts against the daily budget', async () => {
+    const { p } = scripted([
+      (emit, signal) => new Promise<void>((_, reject) => {
+        signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        emit('x'.repeat(400)); // ~100 tokens of answer before Stop
+      }),
+    ]);
+    ai.setAnswerProvider(p);
+    const user = new (await import('mongoose')).Types.ObjectId().toString();
+    const stop = new AbortController();
+    await assert.rejects(ai.generateAnswer(req, { userId: user, signal: stop.signal, onEvent: () => stop.abort() }));
+    const used = (await quota.getUsage(user)).genTokens;
+    assert.ok(used >= 100, `only ${used} tokens charged for a stopped answer`);
+  });
+
+  it('GEN-10 without a key, production switches answers off instead of faking them', async () => {
+    const { env } = await import('../../config/env.js');
+    const saved = { NODE_ENV: env.NODE_ENV, ANSWER_PROVIDER: env.ANSWER_PROVIDER, ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY };
+    try {
+      Object.assign(env, { NODE_ENV: 'production', ANSWER_PROVIDER: undefined, ANTHROPIC_API_KEY: '' });
+      assert.deepEqual(ai.answerSetup(), { available: false, provider: 'none', model: null });
+      assert.throws(() => ai.answerProvider(), { code: 'ANSWERS_NOT_CONFIGURED' });
+      Object.assign(env, { NODE_ENV: 'development' });
+      assert.equal(ai.answerSetup().provider, 'fake', 'development keeps the demo answerer');
+      Object.assign(env, { ANTHROPIC_API_KEY: 'sk-ant-test' });
+      assert.equal(ai.answerSetup().provider, 'anthropic', 'a key selects Claude');
+    } finally {
+      Object.assign(env, saved);
+    }
+  });
+
   it('GEN-08 a provider that ignores cancellation still cannot hang the request', async () => {
     ai.answerTimeouts.firstTokenMs = 30;
     const { p } = scripted([() => new Promise<void>(() => undefined)]); // never settles, never listens

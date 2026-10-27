@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import { HttpError } from '../../middleware/errors';
 import { Conversation, MAX_TURNS, TURN_STATUSES } from '../../models/Conversation';
+import { Note } from '../../models/Note';
 import { generateAnswer } from '../../platform/ai-client';
 import { AnswerRefusedError, type AnswerSegment } from '../../platform/generation/types';
 import { QUOTA_EXCEEDED } from '../../platform/quota';
@@ -26,7 +27,7 @@ type TurnData = {
   costUsd: number;
   createdAt: Date;
 };
-type Prepared = { conversationId: Types.ObjectId | null; history: { question: string; answer: string }[]; sources: RetrievedNote[] };
+type Prepared = { conversationId: Types.ObjectId | null; history: { question: string; answer: string }[]; sources: RetrievedNote[]; pendingNotes: number };
 
 const turnText = (t: { segments?: { text?: string | null }[] | null }) => (t.segments ?? []).map((s) => s.text ?? '').join('');
 
@@ -49,8 +50,26 @@ export async function prepareAsk(userId: string, input: AskInput): Promise<Prepa
     previousQuestion = conv.turns.at(-1)?.question;
   }
 
-  const sources = await retrieveForQuestion(userId, input.question, previousQuestion);
-  return { conversationId, history, sources };
+  let sources: RetrievedNote[];
+  try {
+    sources = await retrieveForQuestion(userId, input.question, previousQuestion);
+  } catch (e) {
+    if (e instanceof HttpError) throw e; // budget reached etc.
+    console.error('Retrieval for an answer failed', e);
+    throw new HttpError(503, 'Answers are unavailable right now because search by meaning is down. Keyword search still works.', 'SEMANTIC_UNAVAILABLE');
+  }
+
+  // "Not found" is misleading while recently saved notes are still being prepared for search.
+  const pendingNotes = sources.length
+    ? 0
+    : await Note.countDocuments({ userId, deletedAt: null, archived: false, 'processing.status': { $in: ['pending', 'processing'] } });
+  return { conversationId, history, sources, pendingNotes };
+}
+
+export function notFoundText(pendingNotes: number) {
+  if (!pendingNotes) return NOT_FOUND_ANSWER;
+  const some = pendingNotes === 1 ? '1 of your notes is' : `${pendingNotes} of your notes are`;
+  return `${NOT_FOUND_ANSWER} ${some} still being prepared for search, so try again in a minute.`;
 }
 
 function friendlyError(e: unknown): { code: string; message: string } {
@@ -90,8 +109,9 @@ export async function runAsk(userId: string, input: AskInput, prepared: Prepared
   if (!sources.length) {
     // Nothing relevant: say so without calling (or paying for) the model.
     turn.status = 'not_found';
-    turn.segments = [{ text: NOT_FOUND_ANSWER, citations: [] }];
-    send('text', { text: NOT_FOUND_ANSWER });
+    const text = notFoundText(prepared.pendingNotes);
+    turn.segments = [{ text, citations: [] }];
+    send('text', { text });
   } else {
     // Mirrors what has streamed, so a stopped answer can be saved as far as it got.
     const partial: AnswerSegment = { text: '', citations: [] };

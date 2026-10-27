@@ -247,6 +247,51 @@ describe('Failures and limits', () => {
   });
 });
 
+describe('Robustness', () => {
+  it('ASK-16 the status endpoint reports which answer model is in use', async () => {
+    const r = await A.get('/api/ask/status');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body, { available: true, provider: 'fake', model: 'fake-answerer' });
+  });
+
+  it('ASK-17 with answers switched off, asking says so (503) instead of failing later', async () => {
+    const { env } = await import('../config/env.js');
+    const saved = { NODE_ENV: env.NODE_ENV, ANSWER_PROVIDER: env.ANSWER_PROVIDER };
+    try {
+      Object.assign(env, { NODE_ENV: 'production', ANSWER_PROVIDER: undefined });
+      const r = await ask(tokenA, { question: 'network retries' });
+      assert.equal(r.status, 503);
+      assert.equal(r.json.code, 'ANSWERS_NOT_CONFIGURED');
+      assert.equal((await A.get('/api/ask/status')).body.available, false);
+    } finally {
+      Object.assign(env, saved);
+    }
+  });
+
+  it('ASK-18 if search by meaning is down, asking fails cleanly (503), not with a server error', async () => {
+    const { fakeProvider } = await import('../platform/embeddings/fake.js');
+    ai.setEmbeddingProvider({ ...fakeProvider, embed: async () => { throw new Error('model file missing'); } });
+    try {
+      const r = await ask(tokenA, { question: 'network retries' });
+      assert.equal(r.status, 503);
+      assert.equal(r.json.code, 'SEMANTIC_UNAVAILABLE');
+      assert.ok(!JSON.stringify(r.json).includes('model file missing'), 'internal error leaked');
+    } finally {
+      ai.setEmbeddingProvider(null);
+    }
+  });
+
+  it('ASK-19 "not found" mentions notes that are still being prepared for search', async () => {
+    const D = client(api.base, emulatorToken('p4-user-d'));
+    await D.post('/api/notes', { title: 'Brand new note', content: 'Just saved, not embedded yet.' }); // no drain(): still pending
+    const r = await ask(emulatorToken('p4-user-d'), { question: 'volcanic eruptions in Iceland' });
+    assert.match(textOf(r.events), /1 of your notes is still being prepared for search/);
+    await pipeline.drain();
+    const again = await ask(emulatorToken('p4-user-d'), { question: 'volcanic eruptions in Iceland' });
+    assert.doesNotMatch(textOf(again.events), /still being prepared/);
+  });
+});
+
 describe('Conversation history', () => {
   it('CONV-01 list, rename, feedback and delete', async () => {
     const r = await ask(tokenA, { question: 'Tell me about sourdough' });

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { HttpError } from '../../middleware/errors';
+import { answerSetup } from '../../platform/ai-client';
 import { objectId } from '../notes/notes.schema';
 import { askSchema, feedbackSchema, renameConversationSchema } from './ask.schema';
 import * as ask from './ask.service';
@@ -8,8 +9,15 @@ import * as ask from './ask.service';
 export const ASK_RATE_LIMIT = { max: 10, windowMs: 60_000 };
 const recent = new Map<string, number[]>();
 
+let lastSweep = Date.now();
+
 function takeRateLimitSlot(userId: string) {
   const now = Date.now();
+  // Forget users who haven't asked within the window, so the map doesn't grow forever.
+  if (now - lastSweep > ASK_RATE_LIMIT.windowMs) {
+    for (const [id, times] of recent) if (now - (times.at(-1) ?? 0) >= ASK_RATE_LIMIT.windowMs) recent.delete(id);
+    lastSweep = now;
+  }
   const times = (recent.get(userId) ?? []).filter((t) => now - t < ASK_RATE_LIMIT.windowMs);
   if (times.length >= ASK_RATE_LIMIT.max) throw new HttpError(429, 'Too many questions in a short time. Wait a minute and try again.', 'RATE_LIMITED');
   times.push(now);
@@ -18,13 +26,22 @@ function takeRateLimitSlot(userId: string) {
 
 /** Tests only. */
 export const resetAskRateLimit = () => recent.clear();
+export const rateLimitedUsers = () => recent.size;
 
 export const askRouter = Router();
+
+// Which answer model the server uses, so the page can say when answers are only a demo.
+askRouter.get('/status', (_req, res) => {
+  res.json(answerSetup());
+});
 
 // POST /api/ask → text/event-stream: start, text*, citation*, (error), done
 askRouter.post('/', async (req, res) => {
   const userId = req.auth!.userId;
   const input = askSchema.parse(req.body);
+  if (!answerSetup().available) {
+    throw new HttpError(503, 'Answers are not set up on this server yet. Search still works.', 'ANSWERS_NOT_CONFIGURED');
+  }
   takeRateLimitSlot(userId);
   // Plain HTTP errors (404, 429 budget…) can still be returned up to this point.
   const prepared = await ask.prepareAsk(userId, input);

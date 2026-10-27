@@ -106,9 +106,22 @@ const ANSWER_OUTPUT_RESERVE = 1000;
 
 let answerer: AnswerProvider | null = null;
 
+/**
+ * Which answer model is configured. Without a key the fake answerer is used, except in
+ * production, where answers are switched off instead of silently showing fake ones to real users.
+ */
+export function answerSetup(): { available: boolean; provider: 'anthropic' | 'fake' | 'none'; model: string | null } {
+  if (answerer) return { available: true, provider: answerer.name === 'anthropic' ? 'anthropic' : 'fake', model: answerer.model };
+  const name = env.ANSWER_PROVIDER ?? (env.ANTHROPIC_API_KEY ? 'anthropic' : env.NODE_ENV === 'production' ? 'none' : 'fake');
+  if (name === 'none') return { available: false, provider: 'none', model: null };
+  return { available: true, provider: name, model: name === 'anthropic' ? env.ANSWER_MODEL : fakeAnswerProvider.model };
+}
+
 export function answerProvider(): AnswerProvider {
-  const name = env.ANSWER_PROVIDER ?? (env.ANTHROPIC_API_KEY ? 'anthropic' : 'fake');
-  answerer ??= name === 'anthropic' ? anthropicAnswerProvider(env.ANTHROPIC_API_KEY!, env.ANSWER_MODEL) : fakeAnswerProvider;
+  if (answerer) return answerer;
+  const { provider } = answerSetup();
+  if (provider === 'none') throw Object.assign(new Error('No answer model is configured'), { code: 'ANSWERS_NOT_CONFIGURED' });
+  answerer = provider === 'anthropic' ? anthropicAnswerProvider(env.ANTHROPIC_API_KEY!, env.ANSWER_MODEL) : fakeAnswerProvider;
   return answerer;
 }
 
@@ -133,6 +146,7 @@ export async function generateAnswer(req: AnswerRequest, ctx: GenerateContext): 
   const started = Date.now();
   for (let attempt = 1; ; attempt++) {
     let streamed = false;
+    let streamedChars = 0;
     const controller = new AbortController();
     const abort = (reason: string) => controller.abort(Object.assign(new Error(reason), { name: 'TimeoutError' }));
     const onCallerAbort = () => controller.abort(ctx.signal?.reason);
@@ -148,6 +162,7 @@ export async function generateAnswer(req: AnswerRequest, ctx: GenerateContext): 
             if (controller.signal.aborted) return; // nothing more reaches the caller after a cancel or timeout
             if (!streamed) clearTimeout(firstToken);
             streamed = true;
+            if (e.type === 'text') streamedChars += e.text.length;
             ctx.onEvent(e);
           },
         }),
@@ -166,7 +181,14 @@ export async function generateAnswer(req: AnswerRequest, ctx: GenerateContext): 
       return { ...result, costUsd, ms: Date.now() - started };
     } catch (e) {
       const err = controller.signal.aborted && !ctx.signal?.aborted ? controller.signal.reason : e;
-      if (streamed || ctx.signal?.aborted || attempt > MAX_RETRIES || !isRetryable(err)) throw err;
+      const giveUp = streamed || ctx.signal?.aborted || attempt > MAX_RETRIES || !isRetryable(err);
+      // A stopped or failed answer was still billed for what the model read and wrote, so it
+      // counts against the budget too (estimated, as the real usage never arrived). Otherwise
+      // pressing Stop repeatedly would get around the daily limit.
+      if (giveUp && streamed) {
+        await recordUsage(ctx.userId, { gen: estimateTokens(prompt) + Math.ceil(streamedChars / 4) }).catch(() => undefined);
+      }
+      if (giveUp) throw err;
       await new Promise((r) => setTimeout(r, backoffMs(attempt)));
     } finally {
       clearTimeout(firstToken);

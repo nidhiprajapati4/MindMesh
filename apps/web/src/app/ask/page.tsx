@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { streamAsk } from '@/lib/sse';
 
 type Usage = { embedTokens: number; genTokens: number; budget: number };
+type AnswerSetup = { available: boolean; provider: 'anthropic' | 'fake' | 'none'; model: string | null };
 
 const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
@@ -25,7 +26,12 @@ function AskPage() {
   const [error, setError] = useState('');
   const [usage, setUsage] = useState<Usage | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [setup, setSetup] = useState<AnswerSetup | null>(null);
   const stopRef = useRef<AbortController | null>(null);
+  // The conversation the answer being written belongs to (null = a new one), and the one on screen.
+  const liveForRef = useRef<string | null>(null);
+  const viewRef = useRef(conversationId);
+  viewRef.current = conversationId;
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -40,8 +46,16 @@ function AskPage() {
   }, []);
 
   useEffect(() => {
-    if (user) loadList().catch((e) => setError(message(e, 'Could not load conversations')));
+    if (!user) return;
+    loadList().catch((e) => setError(message(e, 'Could not load conversations')));
+    api<AnswerSetup>('/api/ask/status').then(setSetup).catch(() => undefined);
   }, [user, loadList]);
+
+  // Opening another conversation while an answer is being written stops that answer
+  // (the server keeps what was written, marked as stopped) instead of showing it in the wrong place.
+  useEffect(() => {
+    if (stopRef.current && liveForRef.current !== conversationId) stopRef.current.abort();
+  }, [conversationId]);
 
   // Open the conversation named in the URL (?c=…), or a blank one.
   useEffect(() => {
@@ -69,6 +83,9 @@ function AskPage() {
     setQuestion('');
     const stop = new AbortController();
     stopRef.current = stop;
+    const origin = conversation?._id ?? null;
+    liveForRef.current = origin;
+    const stillViewing = () => (viewRef.current ?? null) === origin;
     setLive({ question: q, segments: [], sources: [], status: 'streaming', error: null });
     let newId: string | null = null;
 
@@ -101,12 +118,14 @@ function AskPage() {
               setLive((t) => t && { ...t, error: ev.data.message });
               break;
             case 'done':
-              setConversation((c) => ({
-                _id: ev.data.conversationId,
-                title: c?.title ?? q.slice(0, 80),
-                updatedAt: new Date().toISOString(),
-                turns: [...(c?.turns ?? []), ev.data.turn],
-              }));
+              if (stillViewing()) {
+                setConversation((c) => ({
+                  _id: ev.data.conversationId,
+                  title: c?.title ?? q.slice(0, 80),
+                  updatedAt: new Date().toISOString(),
+                  turns: [...(c?.turns ?? []), ev.data.turn],
+                }));
+              }
               setLive(null);
               break;
           }
@@ -114,9 +133,11 @@ function AskPage() {
         stop.signal
       );
       if (stop.signal.aborted) {
-        // The server saves the partial answer; reload the conversation to show it as stopped.
+        // The server saves the partial answer; reload the conversation to show it as stopped
+        // (also when Stop came before the server said which conversation it is).
         setLive(null);
-        if (newId) setConversation(await api<Conversation>(`/api/conversations/${newId}`));
+        const id = newId ?? origin;
+        if (id && stillViewing()) setConversation(await api<Conversation>(`/api/conversations/${id}`));
       }
     } catch (err) {
       setLive(null);
@@ -124,7 +145,9 @@ function AskPage() {
       setError(err instanceof ApiError && err.code === 'QUOTA_EXCEEDED' ? `${err.message} You can still search your notes by keyword.` : message(err, 'Could not ask that question'));
     } finally {
       stopRef.current = null;
-      if (newId && newId !== conversationId) router.replace(`/ask?c=${newId}`);
+      liveForRef.current = null;
+      // Show the new conversation's URL, unless the user has moved to another one meanwhile.
+      if (newId && newId !== viewRef.current && stillViewing()) router.replace(`/ask?c=${newId}`);
       loadList().catch(() => undefined);
     }
   };
@@ -225,6 +248,16 @@ function AskPage() {
             <button className="underline" onClick={() => setError('')}>Dismiss</button>
           </p>
         )}
+        {setup?.provider === 'fake' && (
+          <p role="status" className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Demo answers: no AI model is connected, so answers just quote matching notes. Add <code>ANTHROPIC_API_KEY</code> to the API’s settings for real answers.
+          </p>
+        )}
+        {setup && !setup.available && (
+          <p role="status" className="rounded border border-line bg-white px-3 py-2 text-sm text-muted">
+            Answers aren’t set up on this server yet. You can still <Link href="/notes" className="text-accent underline">search your notes</Link>.
+          </p>
+        )}
         {usedShare >= 0.8 && (
           <p role="status" className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             You’ve used {Math.min(100, Math.round(usedShare * 100))}% of today’s AI budget. It resets at midnight UTC.
@@ -257,11 +290,12 @@ function AskPage() {
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={onKey}
             aria-label="Your question"
+            disabled={setup?.available === false}
           />
           {busy ? (
             <button type="button" className="btn-ghost" onClick={() => stopRef.current?.abort()}>Stop</button>
           ) : (
-            <button type="submit" className="btn-primary" disabled={!question.trim()}>Ask</button>
+            <button type="submit" className="btn-primary" disabled={!question.trim() || setup?.available === false}>Ask</button>
           )}
         </form>
         <p className="-mt-3 text-xs text-muted">Enter to ask · Shift+Enter for a new line</p>
