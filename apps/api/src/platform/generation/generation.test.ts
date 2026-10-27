@@ -156,17 +156,17 @@ describe('Answer generation (ai-client)', () => {
     assert.ok(used >= 100, `only ${used} tokens charged for a stopped answer`);
   });
 
-  it('GEN-10 without a key, production switches answers off instead of faking them', async () => {
+  it('GEN-10 without a key, free smart quotes are used (also in production); a key selects Claude', async () => {
     const { env } = await import('../../config/env.js');
     const saved = { NODE_ENV: env.NODE_ENV, ANSWER_PROVIDER: env.ANSWER_PROVIDER, ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY };
     try {
-      Object.assign(env, { NODE_ENV: 'production', ANSWER_PROVIDER: undefined, ANTHROPIC_API_KEY: '' });
-      assert.deepEqual(ai.answerSetup(), { available: false, provider: 'none', model: null });
-      assert.throws(() => ai.answerProvider(), { code: 'ANSWERS_NOT_CONFIGURED' });
-      Object.assign(env, { NODE_ENV: 'development' });
-      assert.equal(ai.answerSetup().provider, 'fake', 'development keeps the demo answerer');
+      for (const NODE_ENV of ['production', 'development']) {
+        Object.assign(env, { NODE_ENV, ANSWER_PROVIDER: undefined, ANTHROPIC_API_KEY: '' });
+        assert.equal(ai.answerSetup().provider, 'quotes', NODE_ENV);
+      }
       Object.assign(env, { ANTHROPIC_API_KEY: 'sk-ant-test' });
       assert.equal(ai.answerSetup().provider, 'anthropic', 'a key selects Claude');
+      assert.equal(ai.answerSetup().model, 'claude-opus-5-5');
     } finally {
       Object.assign(env, saved);
     }
@@ -179,6 +179,66 @@ describe('Answer generation (ai-client)', () => {
     const started = Date.now();
     await assert.rejects(ai.generateAnswer(req, { userId, onEvent: () => undefined }), { name: 'TimeoutError' });
     assert.ok(Date.now() - started < 10_000, 'gave up promptly');
+  });
+});
+
+describe('Smart quotes (free answer mode)', () => {
+  const signal = new AbortController().signal;
+  const notes = [
+    { title: 'Sourdough starter', text: 'Feed the starter equal weights of flour and water daily. It is ready to bake with when it doubles within six hours and smells tangy.' },
+    { title: 'Carbon capture', text: 'Direct air capture pulls carbon dioxide from the air. It costs over 400 dollars per tonne.' },
+  ];
+  const quotes = async () => {
+    const { quotesAnswerProvider } = await import('./quotes.js');
+    const { fakeProvider } = await import('../embeddings/fake.js');
+    return quotesAnswerProvider((t, s) => fakeProvider.embed(t, s), fakeProvider.model);
+  };
+
+  it('QUOTE-01 quotes the sentence that answers the question, citing its note', async () => {
+    const p = await quotes();
+    const { events, onEvent } = collect();
+    const r = await p.answer({ history: [], question: 'When is the sourdough starter ready to bake?', docs: notes }, { signal, onEvent });
+    const cited = r.segments.flatMap((s) => s.citations);
+    assert.equal(cited[0].docIndex, 0);
+    assert.match(cited[0].quote, /ready to bake with when it doubles/);
+    assert.ok(!cited.some((c) => c.docIndex === 1), 'quoted the unrelated note');
+    assert.match(r.segments.map((s) => s.text).join(''), /^From your notes:\n- /);
+    assert.ok(events.some((e) => e.type === 'citation'));
+  });
+
+  it('QUOTE-02 a sentence is understood in the context of its note title', async () => {
+    const p = await quotes();
+    // "It costs over 400 dollars" never says "carbon"; the title supplies that context.
+    const r = await p.answer({ history: [], question: 'carbon capture cost dollars', docs: notes }, { signal, onEvent: () => undefined });
+    assert.match(r.segments.flatMap((s) => s.citations).map((c) => c.quote).join(' '), /400 dollars/);
+  });
+
+  it('QUOTE-03 nothing close enough: says so instead of quoting something loosely related', async () => {
+    const p = await quotes();
+    const r = await p.answer({ history: [], question: 'volcanic eruptions in Iceland', docs: notes }, { signal, onEvent: () => undefined });
+    const { QUOTES_NOT_FOUND } = await import('./quotes.js');
+    assert.deepEqual(r.segments, [{ text: QUOTES_NOT_FOUND, citations: [] }]);
+  });
+
+  it('QUOTE-04 limits quotes per note and in total, and never repeats a sentence', async () => {
+    const { quoteSettings } = await import('./quotes.js');
+    const p = await quotes();
+    const many = Array.from({ length: 4 }, (_, i) => ({ title: `Retry note ${i}`, text: 'Retry network requests with backoff. Retry network requests with backoff and jitter. Use backoff for network retries.' }));
+    const r = await p.answer({ history: [], question: 'retry network requests backoff jitter', docs: many }, { signal, onEvent: () => undefined });
+    const cited = r.segments.flatMap((s) => s.citations);
+    assert.ok(cited.length <= quoteSettings.maxQuotes);
+    for (let i = 0; i < many.length; i++) assert.ok(cited.filter((c) => c.docIndex === i).length <= quoteSettings.maxPerNote);
+    const perNote = new Map<number, Set<string>>();
+    for (const c of cited) {
+      const seen = perNote.get(c.docIndex) ?? new Set<string>();
+      assert.ok(!seen.has(c.quote), 'repeated sentence');
+      perNote.set(c.docIndex, seen.add(c.quote));
+    }
+  });
+
+  it('QUOTE-05 sentence splitting drops list markers and fragments', async () => {
+    const { sentences } = await import('./quotes.js');
+    assert.deepEqual(sentences('- First point here.\n- Second point is longer. Ok.\n\nThird line without stop'), ['First point here.', 'Second point is longer.', 'Third line without stop']);
   });
 });
 

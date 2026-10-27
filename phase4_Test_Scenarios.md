@@ -4,9 +4,10 @@ Every Phase 4 test scenario: what it checks, how to run it, and its latest resul
 
 | Kind | Scenarios | Latest result |
 |---|---|---|
-| Automated API tests (Phase 4) | 33 | ✅ 33 / 33 pass (whole suite: 131 / 131) |
-| Manual browser scenarios | 9 | ✅ 9 / 9 pass (fake answer model) |
-| Real-Claude checks | 8 | ⏳ Pending `ANTHROPIC_API_KEY` |
+| Automated API tests (Phase 4) | 38 | ✅ 38 / 38 pass (whole suite: 136 / 136) |
+| Manual browser scenarios | 10 | ✅ 10 / 10 pass |
+| Free answer evaluation (smart quotes) | 20 questions | ✅ 100% citation accuracy, precision and fact coverage; 5 / 6 declines |
+| Real-Claude checks (optional, paid) | 8 | Not run: only needed if you add `ANTHROPIC_API_KEY` |
 
 ## How to run
 
@@ -16,7 +17,7 @@ npm test -w apps/api
 ```
 They always use the fake answer model, even if `apps/api/.env` contains a real key.
 
-**Manual browser scenarios:** run the three dev processes and open http://localhost:3000. Without `ANTHROPIC_API_KEY`, answers come from the demo answerer.
+**Manual browser scenarios:** run the three dev processes and open http://localhost:3000. Without `ANTHROPIC_API_KEY`, answers come from free smart quotes.
 ```bash
 npm run dev:api
 ```
@@ -32,7 +33,7 @@ Save a few notes first (for example about sourdough, carbon capture and box brea
 ```bash
 npm run eval:ask -w apps/api
 ```
-Without `--paid` it checks the harness with the fake answerer, free. With `-- --paid` it uses Claude (about $0.60).
+By default it evaluates free smart quotes (and sweeps their settings), at no cost. `-- --fake` checks the harness with the test answerer; `-- --paid` uses Claude (about $0.60).
 
 ---
 
@@ -48,7 +49,12 @@ Without `--paid` it checks the harness with the fake answerer, free. With `-- --
 | GEN-07 | User presses Stop mid-answer | Stops at once; not retried | ✅ |
 | GEN-08 | Model ignores cancellation | The request still ends promptly | ✅ |
 | GEN-09 | Stopped answer | Still charged against the daily budget | ✅ |
-| GEN-10 | No API key, production vs development vs key set | Production: answers off; development: demo answerer; with a key: Claude | ✅ |
+| GEN-10 | No API key (production and development) vs key set | Without a key: free smart quotes, in both; with a key: Claude (`claude-opus-5-5`) | ✅ |
+| QUOTE-01 | Smart quotes: question answered by a note | Quotes the answering sentence ("ready to bake with when it doubles…") and cites its note; nothing from the unrelated note | ✅ |
+| QUOTE-02 | Smart quotes: sentence that doesn't repeat the topic | "It costs over 400 dollars" is found for a carbon-capture question, via its note title | ✅ |
+| QUOTE-03 | Smart quotes: nothing close enough | "I couldn't find a sentence in your notes that answers this directly."; no citations | ✅ |
+| QUOTE-04 | Smart quotes: many similar sentences | At most 3 quotes, at most 2 per note, no sentence repeated | ✅ |
+| QUOTE-05 | Sentence splitting | List markers removed; fragments dropped; lines without a full stop kept | ✅ |
 | CLAUDE-01 | Request sent to Claude (recorded stream, no network) | Notes sent as citable documents; question after them; history first; cached system prompt; effort `medium`; refusal fallback enabled | ✅ |
 | CLAUDE-02 | Reply from Claude (recorded stream) | Streamed text and citations parsed; real token usage including cache reads | ✅ |
 | CLAUDE-03 | Claude declines, is down, or rejects the request | Refusal reported as such; 5xx retryable; 400 not retried | ✅ |
@@ -68,8 +74,8 @@ Without `--paid` it checks the harness with the fake answerer, free. With `-- --
 | ASK-13 | Model declines | `REFUSED` with a plain message | ✅ |
 | ASK-14 | Client presses Stop (closes the stream) | Model call cancelled; partial answer and its citations saved as `stopped` | ✅ |
 | ASK-15 | 11 questions within a minute | 11th gets `429 RATE_LIMITED`; other users unaffected | ✅ |
-| ASK-16 | Ask page asks which model is in use | `{ available: true, provider: "fake", model: "fake-answerer" }` in tests | ✅ |
-| ASK-17 | Production server without a key | `503 ANSWERS_NOT_CONFIGURED`; status says unavailable | ✅ |
+| ASK-16 | Ask page asks which mode is in use | `{ available: true, provider: "fake", model: "fake-answerer" }` in tests | ✅ |
+| ASK-17 | Production server without a key | Status says `quotes`; asking returns cited quotes ("From your notes: - …backoff…") from the right note | ✅ |
 | ASK-18 | Search model broken | `503 SEMANTIC_UNAVAILABLE`, not a 500; no internal details | ✅ |
 | ASK-19 | Ask while a new note is still processing | "Not found" adds "1 of your notes is still being prepared…"; the hint disappears once processed | ✅ |
 | CONV-01 | Conversation history | Newest first with turn counts; rename (empty name rejected); 👍 with comment saved; bad answer index 404/400; invalid rating 400; delete | ✅ |
@@ -82,7 +88,7 @@ Without `--paid` it checks the harness with the fake answerer, free. With `-- --
 | RANK-05 | Weak keyword hit | A note matching 1 of 3 content words is weak; plurals and one-word queries still count | ✅ |
 
 ## 4. Manual browser scenarios
-Run on a local test stack with the real local search model and the fake answer model. Latest run: 2026-10-27.
+Run on a local test stack with the real local search model. UI-P4-01 to 09 used the test answerer; UI-P4-10 used the default free smart quotes. Latest run: 2026-10-27.
 
 | ID | Steps | Expected | Result |
 |---|---|---|---|
@@ -93,18 +99,19 @@ Run on a local test stack with the real local search model and the fake answer m
 | UI-P4-05 | In that conversation ask "volcanic eruptions in Iceland", then "What does direct air capture do?", then "And how much does it cost?" | Off-topic: no sources and "None of your notes seem to cover this". Follow-up keeps *Carbon capture* | ✅ |
 | UI-P4-06 | 👍 an answer and reload; rename a conversation; delete another | Rating kept; new name shown; delete asks to confirm, then removes it | ✅ |
 | UI-P4-07 | Narrow the window to phone width (375 px) | No sideways scrolling; question box stays at the bottom | ✅ |
-| UI-P4-08 | Open Ask without an API key | Yellow "Demo answers" notice | ✅ |
+| UI-P4-08 | Open Ask on a server set to the test answerer (`ANSWER_PROVIDER=fake`) | Yellow "Test answers" notice | ✅ |
 | UI-P4-09 | Ask in one conversation; click New conversation and ask there; reopen the first | Each conversation shows only its own answers | ✅ |
+| UI-P4-10 | No API key, default settings. Ask "How long do access tokens last?", "How do I calm my nerves before a presentation?", "What does direct air capture cost?" and "volcanic eruptions in Iceland" | "Free mode" notice at the top. Cited quotes: "Access tokens live 15 minutes…"; "Five rounds calms nerves…" **and** "Inhale for four seconds…"; "Still costs over 400 dollars per tonne…". Off-topic: "I couldn't find anything…" | ✅ |
 
 Not repeatable in a browser with the fake model, because it answers too fast: **Stop mid-answer** (covered by ASK-14 and GEN-07) and **switching conversation mid-answer** (code-reviewed; checked in R-06 below).
 
-## 5. Pending: checks with real Claude
-After adding `ANTHROPIC_API_KEY` to `apps/api/.env` and restarting the API:
+## 5. Optional: checks with real Claude
+Only needed if you add Claude later (paid API credits; a Claude Pro subscription doesn't include them). After adding `ANTHROPIC_API_KEY` to `apps/api/.env` and restarting the API:
 
 | ID | Steps | Expected |
 |---|---|---|
 | R-01 | `npm run eval:ask -w apps/api -- --paid` (about $0.60) | Report in `docs/eval/phase4.md`: citation accuracy, fact coverage and correct declines; failures listed |
-| R-02 | Open Ask | No "Demo answers" notice |
+| R-02 | Open Ask | No "Free mode" notice (Claude is in use) |
 | R-03 | Ask a question your notes answer | A short, plain-text answer (no Markdown symbols) with citation chips on its claims |
 | R-04 | Ask "How many nodes does our Kubernetes cluster have?" with only a Kubernetes-probes note | Says the notes don't contain this; doesn't guess |
 | R-05 | Ask a long question and press Stop mid-answer | Stops at once; answer kept as "You stopped this answer" |

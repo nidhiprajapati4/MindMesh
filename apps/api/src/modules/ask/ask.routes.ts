@@ -30,7 +30,7 @@ export const rateLimitedUsers = () => recent.size;
 
 export const askRouter = Router();
 
-// Which answer model the server uses, so the page can say when answers are only a demo.
+// Which answer mode the server uses (Claude, free smart quotes, or the test answerer), for the Ask page.
 askRouter.get('/status', (_req, res) => {
   res.json(answerSetup());
 });
@@ -39,9 +39,6 @@ askRouter.get('/status', (_req, res) => {
 askRouter.post('/', async (req, res) => {
   const userId = req.auth!.userId;
   const input = askSchema.parse(req.body);
-  if (!answerSetup().available) {
-    throw new HttpError(503, 'Answers are not set up on this server yet. Search still works.', 'ANSWERS_NOT_CONFIGURED');
-  }
   takeRateLimitSlot(userId);
   // Plain HTTP errors (404, 429 budget…) can still be returned up to this point.
   const prepared = await ask.prepareAsk(userId, input);

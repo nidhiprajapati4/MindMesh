@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { streamAsk } from '@/lib/sse';
 
 type Usage = { embedTokens: number; genTokens: number; budget: number };
-type AnswerSetup = { available: boolean; provider: 'anthropic' | 'fake' | 'none'; model: string | null };
+type AnswerSetup = { available: boolean; provider: 'anthropic' | 'quotes' | 'fake'; model: string };
 
 const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
@@ -248,14 +248,14 @@ function AskPage() {
             <button className="underline" onClick={() => setError('')}>Dismiss</button>
           </p>
         )}
-        {setup?.provider === 'fake' && (
-          <p role="status" className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Demo answers: no AI model is connected, so answers just quote matching notes. Add <code>ANTHROPIC_API_KEY</code> to the API’s settings for real answers.
+        {setup?.provider === 'quotes' && (
+          <p role="status" className="rounded border border-line bg-white px-3 py-2 text-sm text-muted">
+            Free mode: answers are the sentences from your notes that best match your question, quoted with their source. They aren’t rewritten or summarised.
           </p>
         )}
-        {setup && !setup.available && (
-          <p role="status" className="rounded border border-line bg-white px-3 py-2 text-sm text-muted">
-            Answers aren’t set up on this server yet. You can still <Link href="/notes" className="text-accent underline">search your notes</Link>.
+        {setup?.provider === 'fake' && (
+          <p role="status" className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Test answers: this server uses the test answerer, which only quotes the first sentence of matching notes.
           </p>
         )}
         {usedShare >= 0.8 && (
@@ -290,12 +290,11 @@ function AskPage() {
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={onKey}
             aria-label="Your question"
-            disabled={setup?.available === false}
           />
           {busy ? (
             <button type="button" className="btn-ghost" onClick={() => stopRef.current?.abort()}>Stop</button>
           ) : (
-            <button type="submit" className="btn-primary" disabled={!question.trim() || setup?.available === false}>Ask</button>
+            <button type="submit" className="btn-primary" disabled={!question.trim()}>Ask</button>
           )}
         </form>
         <p className="-mt-3 text-xs text-muted">Enter to ask · Shift+Enter for a new line</p>

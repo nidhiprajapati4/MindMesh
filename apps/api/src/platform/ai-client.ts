@@ -9,6 +9,7 @@ import { openaiProvider } from './embeddings/openai';
 import type { EmbeddingProvider } from './embeddings/types';
 import { anthropicAnswerProvider } from './generation/anthropic';
 import { fakeAnswerProvider } from './generation/fake';
+import { quotesAnswerProvider } from './generation/quotes';
 import type { AnswerEvent, AnswerProvider, AnswerRequest, AnswerResult } from './generation/types';
 import { assertWithinBudget, recordUsage } from './quota';
 import { estimateTokens } from './tokens';
@@ -106,22 +107,27 @@ const ANSWER_OUTPUT_RESERVE = 1000;
 
 let answerer: AnswerProvider | null = null;
 
+export type AnswerProviderName = 'anthropic' | 'quotes' | 'fake';
+
 /**
- * Which answer model is configured. Without a key the fake answerer is used, except in
- * production, where answers are switched off instead of silently showing fake ones to real users.
+ * Which answer mode is configured: Claude when a key is set, otherwise free "smart quotes"
+ * (sentences picked from the notes by meaning, no language model). `fake` only when asked for (tests).
  */
-export function answerSetup(): { available: boolean; provider: 'anthropic' | 'fake' | 'none'; model: string | null } {
-  if (answerer) return { available: true, provider: answerer.name === 'anthropic' ? 'anthropic' : 'fake', model: answerer.model };
-  const name = env.ANSWER_PROVIDER ?? (env.ANTHROPIC_API_KEY ? 'anthropic' : env.NODE_ENV === 'production' ? 'none' : 'fake');
-  if (name === 'none') return { available: false, provider: 'none', model: null };
-  return { available: true, provider: name, model: name === 'anthropic' ? env.ANSWER_MODEL : fakeAnswerProvider.model };
+export function answerSetup(): { available: boolean; provider: AnswerProviderName; model: string } {
+  if (answerer) return { available: true, provider: answerer.name as AnswerProviderName, model: answerer.model };
+  const provider = env.ANSWER_PROVIDER ?? (env.ANTHROPIC_API_KEY ? 'anthropic' : 'quotes');
+  const model =
+    provider === 'anthropic' ? env.ANSWER_MODEL : provider === 'quotes' ? `quotes (${embeddingProvider().model})` : fakeAnswerProvider.model;
+  return { available: true, provider, model };
 }
 
 export function answerProvider(): AnswerProvider {
   if (answerer) return answerer;
   const { provider } = answerSetup();
-  if (provider === 'none') throw Object.assign(new Error('No answer model is configured'), { code: 'ANSWERS_NOT_CONFIGURED' });
-  answerer = provider === 'anthropic' ? anthropicAnswerProvider(env.ANTHROPIC_API_KEY!, env.ANSWER_MODEL) : fakeAnswerProvider;
+  answerer =
+    provider === 'anthropic' ? anthropicAnswerProvider(env.ANTHROPIC_API_KEY!, env.ANSWER_MODEL) :
+    provider === 'quotes' ? quotesAnswerProvider((texts, signal) => embeddingProvider().embed(texts, signal), embeddingProvider().model) :
+    fakeAnswerProvider;
   return answerer;
 }
 

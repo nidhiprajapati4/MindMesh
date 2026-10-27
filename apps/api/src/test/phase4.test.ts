@@ -254,17 +254,20 @@ describe('Robustness', () => {
     assert.deepEqual(r.body, { available: true, provider: 'fake', model: 'fake-answerer' });
   });
 
-  it('ASK-17 with answers switched off, asking says so (503) instead of failing later', async () => {
+  it('ASK-17 without a Claude key, a production server answers with free smart quotes', async () => {
     const { env } = await import('../config/env.js');
     const saved = { NODE_ENV: env.NODE_ENV, ANSWER_PROVIDER: env.ANSWER_PROVIDER };
     try {
       Object.assign(env, { NODE_ENV: 'production', ANSWER_PROVIDER: undefined });
-      const r = await ask(tokenA, { question: 'network retries' });
-      assert.equal(r.status, 503);
-      assert.equal(r.json.code, 'ANSWERS_NOT_CONFIGURED');
-      assert.equal((await A.get('/api/ask/status')).body.available, false);
+      ai.setAnswerProvider(null);
+      assert.equal((await A.get('/api/ask/status')).body.provider, 'quotes');
+      const r = await ask(tokenA, { question: 'How should network retries use backoff and jitter?' });
+      assert.equal(r.status, 200);
+      assert.match(textOf(r.events), /^From your notes:\n- .*backoff/s);
+      assert.equal(ev(r.events, 'start').sources[ev(r.events, 'citation').source].noteId, retry._id);
     } finally {
       Object.assign(env, saved);
+      ai.setAnswerProvider(null);
     }
   });
 
