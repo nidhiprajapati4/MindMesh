@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { fakeProvider } from '../../platform/embeddings/fake';
 import { looksLikeFollowUp } from '../ask/follow-up';
-import { cosine, isStrongKeywordHit, rrf, termCoverage, topK } from '../search/rank';
+import { cosine, isStrongKeywordHit, meanVector, rrf, termCoverage, topK } from '../search/rank';
 import { chunkText } from './chunk';
 import { cleanText, htmlToText } from './clean';
 import { contentHash, hasSearchableText } from './extract';
@@ -108,6 +108,12 @@ describe('ranking helpers', () => {
     assert.deepEqual(topK(items, 3).map((x) => x.score), [0.9, 0.7, 0.5]);
     assert.equal(topK(items, 10).length, 5);
     assert.deepEqual(topK(items, 0), []);
+  });
+
+  it('RANK-06 a note vector is the unit-length average of its chunk vectors', () => {
+    const m = meanVector([[1, 0], [0, 1]]);
+    assert.ok(Math.abs(m[0] - Math.SQRT1_2) < 1e-12 && Math.abs(m[1] - Math.SQRT1_2) < 1e-12);
+    assert.deepEqual(meanVector([[3, 4]]), [0.6, 0.8]);
   });
 
   it('RANK-04 weighted fusion lets a trusted list count for more', () => {

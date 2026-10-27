@@ -1,4 +1,7 @@
 import { Chunk } from '../../models/Chunk';
+import { NoteVector } from '../../models/NoteVector';
+import { keyPointsFor } from '../organize/key-points';
+import { meanVector } from '../search/rank';
 import { Note } from '../../models/Note';
 import { ProcessingJob, type IProcessingJob } from '../../models/ProcessingJob';
 import { embed, embeddingProvider, estimateTokens } from '../../platform/ai-client';
@@ -43,7 +46,8 @@ export async function runJob(job: Job): Promise<JobOutcome> {
 
   try {
     const provider = embeddingProvider();
-    const pieces = chunkText(await extractText(note), {
+    const text = await extractText(note);
+    const pieces = chunkText(text, {
       maxTokens: provider.chunkTokens,
       overlapTokens: provider.chunkOverlapTokens,
       title: note.title,
@@ -57,6 +61,10 @@ export async function runJob(job: Job): Promise<JobOutcome> {
       vectors.push(...res.vectors);
       ({ model, dims } = res);
     }
+    // One vector for the whole note (average of its chunks), for related notes, suggestions and
+    // duplicates; and, for long notes, a few of its own sentences as key points.
+    const noteVector = pieces.length ? meanVector(vectors) : null;
+    const keyPoints = noteVector ? await keyPointsFor(String(job.userId), text, noteVector) : [];
 
     // The note may have been edited or trashed while we embedded; only write for the version we processed.
     const still = await Note.exists({ ...current, deletedAt: null });
@@ -66,8 +74,11 @@ export async function runJob(job: Job): Promise<JobOutcome> {
       await Chunk.insertMany(
         pieces.map((text, index) => ({ userId: note.userId, noteId: note._id, index, text, embedding: vectors[index], model, dims, tokenCount: estimateTokens(text) }))
       );
+      await NoteVector.updateOne({ noteId: note._id }, { $set: { userId: note.userId, embedding: noteVector, model, dims } }, { upsert: true });
+    } else {
+      await NoteVector.deleteOne({ noteId: note._id });
     }
-    await Note.updateOne(current, { $set: { processing: { status: pieces.length ? 'ready' : 'skipped', updatedAt: new Date(), error: null } } });
+    await Note.updateOne(current, { $set: { keyPoints, processing: { status: pieces.length ? 'ready' : 'skipped', updatedAt: new Date(), error: null } } });
     await settleJob(job, { status: 'ready', lastError: null, lockedAt: null });
     return 'ready';
   } catch (e) {

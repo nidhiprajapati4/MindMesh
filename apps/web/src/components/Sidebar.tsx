@@ -104,6 +104,7 @@ export function Sidebar({ filters, onChange, folders, tags, onCreateFolder, onRe
         <Link href="/ask" className="btn-ghost flex items-center justify-center gap-1.5" title="Ask a question and get an answer from your notes ( ? )">
           Ask your notes <kbd className="rounded bg-paper px-1 text-[10px] text-muted">?</kbd>
         </Link>
+        <Link href="/duplicates" className="text-center text-xs text-accent hover:underline">Find possible duplicates</Link>
       </div>
 
       <Divider />

@@ -36,6 +36,8 @@ export type Note = {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** 2–3 of the note's own sentences summarising it (long notes only, Phase 5). */
+  keyPoints?: string[];
   /** Search indexing state (Phase 3). Missing on items not processed yet. */
   processing?: { status: 'pending' | 'processing' | 'ready' | 'failed' | 'skipped'; updatedAt: string; error: string | null } | null;
 };
@@ -81,6 +83,21 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
+
+// --- Smart organization (Phase 5) -----------------------------------------------------------
+
+export type NoteBrief = { _id: string; title: string; type: NoteType; preview: string };
+export type RelatedNotes = { items: { note: NoteBrief; score: number }[]; pending: boolean };
+export type Suggestions = {
+  tags: { tag: string; score: number }[];
+  folder: { _id: string; name: string; score: number } | null;
+  duplicates: (NoteBrief & { score: number; reason: 'similar' | 'same-link' })[];
+};
+export type DuplicatePairs = {
+  pairs: { a: NoteBrief; b: NoteBrief; score: number; reason: 'similar' | 'same-link' }[];
+  scanned: number;
+  capped: boolean;
+};
 
 // --- Ask your notes (Phase 4) ---------------------------------------------------------------
 

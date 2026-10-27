@@ -10,6 +10,14 @@ export function cosine(a: number[], b: number[]) {
   return na && nb ? dot / Math.sqrt(na * nb) : 0;
 }
 
+/** The unit-length average of several vectors (e.g. a note's chunk embeddings). */
+export function meanVector(vectors: number[][]): number[] {
+  const sum = new Array<number>(vectors[0]?.length ?? 0).fill(0);
+  for (const v of vectors) for (let i = 0; i < v.length; i++) sum[i] += v[i];
+  const len = Math.sqrt(sum.reduce((s, x) => s + x * x, 0)) || 1;
+  return sum.map((x) => x / len);
+}
+
 /** Keeps the k best-scoring items, best first. */
 export function topK<T extends { score: number }>(items: Iterable<T>, k: number): T[] {
   const best: T[] = [];

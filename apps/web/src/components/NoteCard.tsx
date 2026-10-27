@@ -81,8 +81,15 @@ export function NoteCard({ note: n, folderName, match, onOpen, onPatch, onTrash,
         </time>
       </div>
 
-      {preview && (
-        <p className={`mt-1 line-clamp-3 max-w-prose whitespace-pre-wrap text-muted ${n.type === 'snippet' ? 'font-mono text-sm' : 'font-serif'}`}>{preview}</p>
+      {!match?.snippet && !!n.keyPoints?.length ? (
+        // Long notes, documents and saved links: their key points say more than the first lines.
+        <ul className="mt-1 max-w-prose list-disc pl-5 font-serif text-muted" aria-label="Key points">
+          {n.keyPoints.map((p, i) => <li key={i} className="line-clamp-2">{p}</li>)}
+        </ul>
+      ) : (
+        preview && (
+          <p className={`mt-1 line-clamp-3 max-w-prose whitespace-pre-wrap text-muted ${n.type === 'snippet' ? 'font-mono text-sm' : 'font-serif'}`}>{preview}</p>
+        )
       )}
       {match && MATCH_LABEL[match.matchedBy] && <p className="mt-1 text-xs text-accent">{MATCH_LABEL[match.matchedBy]}</p>}
 

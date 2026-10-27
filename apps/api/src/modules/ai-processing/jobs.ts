@@ -1,5 +1,7 @@
 import type { Types } from 'mongoose';
 import { Chunk } from '../../models/Chunk';
+import { NoteVector } from '../../models/NoteVector';
+import { meanVector } from '../search/rank';
 import { Note } from '../../models/Note';
 import { ProcessingJob } from '../../models/ProcessingJob';
 import { contentHash, hasSearchableText } from './extract';
@@ -28,6 +30,7 @@ export async function queueIfChanged(note: QueueableNote, force = false) {
       Note.updateOne({ _id: note._id }, { $set: set }),
       ProcessingJob.deleteOne({ noteId: note._id }),
       Chunk.deleteMany({ noteId: note._id }),
+      NoteVector.deleteOne({ noteId: note._id }),
     ]);
     return set;
   }
@@ -46,7 +49,11 @@ export async function queueIfChanged(note: QueueableNote, force = false) {
 /** Removes a note's chunks and job (trash / permanent delete). */
 export async function dropEmbeddings(noteIds: Id[]) {
   if (!noteIds.length) return;
-  await Promise.all([Chunk.deleteMany({ noteId: { $in: noteIds } }), ProcessingJob.deleteMany({ noteId: { $in: noteIds } })]);
+  await Promise.all([
+    Chunk.deleteMany({ noteId: { $in: noteIds } }),
+    NoteVector.deleteMany({ noteId: { $in: noteIds } }),
+    ProcessingJob.deleteMany({ noteId: { $in: noteIds } }),
+  ]);
 }
 
 /**
@@ -81,4 +88,28 @@ export async function backfill(filter: Record<string, unknown> = { processing: n
     if (await queueIfChanged(note, true)) queued++;
   }
   return queued;
+}
+
+/**
+ * Builds the note vector (average of the note's chunk embeddings) for every note that has chunks
+ * but no note vector yet, e.g. notes embedded before Phase 5. Uses the stored chunks; nothing is
+ * re-embedded. Safe to run repeatedly.
+ */
+export async function backfillNoteVectors() {
+  const have = new Set((await NoteVector.find({}, { noteId: 1 }).lean()).map((v) => String(v.noteId)));
+  let built = 0;
+  const groups = Chunk.aggregate<{ _id: { noteId: Types.ObjectId; model: string }; userId: Types.ObjectId; dims: number; vectors: number[][] }>([
+    { $group: { _id: { noteId: '$noteId', model: '$model' }, userId: { $first: '$userId' }, dims: { $first: '$dims' }, vectors: { $push: '$embedding' } } },
+  ]).cursor();
+  for await (const g of groups) {
+    if (have.has(String(g._id.noteId))) continue;
+    await NoteVector.updateOne(
+      { noteId: g._id.noteId },
+      { $set: { userId: g.userId, embedding: meanVector(g.vectors), model: g._id.model, dims: g.dims } },
+      { upsert: true }
+    );
+    have.add(String(g._id.noteId));
+    built++;
+  }
+  return built;
 }

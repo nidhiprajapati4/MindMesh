@@ -11,6 +11,8 @@ import {
   type NoteMetadata,
   type NoteType,
 } from '@/lib/api';
+import { RelatedNotes } from './RelatedNotes';
+import { SuggestionBar, useSuggestions } from './Suggestions';
 
 export type Draft = {
   id?: string;
@@ -21,6 +23,8 @@ export type Draft = {
   folderId: string;
   sourceUrl: string;
   metadata: NoteMetadata;
+  /** Read-only summary from the server (long saved notes only). */
+  keyPoints?: string[];
 };
 
 export const blankDraft = (folderId = '', type: NoteType = 'note'): Draft => ({
@@ -42,6 +46,8 @@ type Props = {
   onSave: () => void;
   onCancel: () => void;
   onUpload: (file: File, folderId: string, tags: string) => Promise<void>;
+  /** Opens another note (from a duplicate warning or the related list). */
+  onOpenNote?: (id: string) => void;
   initialMode?: 'write' | 'upload';
 };
 
@@ -57,7 +63,7 @@ export function checkUploadFile(file: File): string {
   return '';
 }
 
-export function NoteEditor({ draft, folders, saving, error, onChange, onSave, onCancel, onUpload, initialMode = 'write' }: Props) {
+export function NoteEditor({ draft, folders, saving, error, onChange, onSave, onCancel, onUpload, onOpenNote, initialMode = 'write' }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [initial] = useState(() => JSON.stringify(draft));
@@ -97,6 +103,17 @@ export function NoteEditor({ draft, folders, saving, error, onChange, onSave, on
     if (saving) return;
     if (dirty && !confirm('Discard your changes?')) return;
     onCancel();
+  };
+
+  const suggestions = useSuggestions(draft, mode === 'write' && !!onOpenNote);
+  const openOther = (id: string) => {
+    if (saving || !onOpenNote) return;
+    if (dirty && !confirm('Discard your changes to this note and open the other one?')) return;
+    onOpenNote(id);
+  };
+  const addTag = (tag: string) => {
+    const current = draft.tags.split(',').map((t) => t.trim()).filter(Boolean);
+    if (!current.map((t) => t.toLowerCase()).includes(tag)) set({ tags: [...current, tag].join(', ') });
   };
 
   const pickFile = (f: File | undefined) => {
@@ -216,6 +233,14 @@ export function NoteEditor({ draft, folders, saving, error, onChange, onSave, on
               {showSource && (
                 <input className="field" type="url" placeholder="https://…" maxLength={2048} value={draft.sourceUrl} onChange={(e) => set({ sourceUrl: e.target.value })} aria-label="Source URL" />
               )}
+              {!!draft.keyPoints?.length && (
+                <section aria-labelledby="keypoints-heading" className="rounded bg-paper px-3 py-2 text-sm">
+                  <h3 id="keypoints-heading" className="text-xs font-semibold uppercase tracking-wide text-muted">Key points</h3>
+                  <ul className="mt-1 list-disc pl-5 font-serif">
+                    {draft.keyPoints.map((p, i) => <li key={i}>{p}</li>)}
+                  </ul>
+                </section>
+              )}
               {draft.metadata.description !== undefined && (
                 <textarea className="field min-h-16 text-sm" placeholder="Description" maxLength={1000} value={draft.metadata.description} onChange={(e) => setMeta({ description: e.target.value })} aria-label="Description" />
               )}
@@ -233,7 +258,11 @@ export function NoteEditor({ draft, folders, saving, error, onChange, onSave, on
           )}
 
           <input className="field" placeholder="Tags, separated by commas" value={draft.tags} onChange={(e) => set({ tags: e.target.value })} aria-label="Tags" />
+          {mode === 'write' && (
+            <SuggestionBar data={suggestions} onAddTag={addTag} onSetFolder={(folderId) => set({ folderId })} onOpenNote={openOther} />
+          )}
           {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+          {!isNew && mode === 'write' && onOpenNote && <RelatedNotes noteId={draft.id!} onOpenNote={openOther} />}
         </div>
 
         <footer className="flex items-center gap-2 border-t border-line px-5 py-3">

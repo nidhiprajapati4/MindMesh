@@ -50,6 +50,8 @@ const noteSchema = new Schema(
     // Phase 3: sha256 of the searchable text; unchanged content is never re-embedded.
     contentHash: { type: String, default: null },
     processing: { type: processingSchema, default: null },
+    // Phase 5: 2–3 of the note's own sentences that summarise it (long notes only), set by the worker.
+    keyPoints: { type: [String], default: [] },
   },
   // minimize: false keeps `metadata: {}` in responses instead of dropping the empty object.
   { timestamps: true, minimize: false }

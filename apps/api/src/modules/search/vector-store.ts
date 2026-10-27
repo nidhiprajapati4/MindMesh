@@ -1,12 +1,15 @@
 import { Types } from 'mongoose';
 import { env } from '../../config/env';
 import { Chunk } from '../../models/Chunk';
+import { NoteVector } from '../../models/NoteVector';
 import { embeddingProvider } from '../../platform/ai-client';
 import { cosine, topK } from './rank';
 
 export const VECTOR_INDEX = 'chunk_vector_index';
+export const NOTE_VECTOR_INDEX = 'note_vector_index';
 
 export type VectorHit = { noteId: string; text: string; score: number };
+export type NoteHit = { noteId: string; score: number };
 
 let backend: 'atlas' | 'memory' = 'memory';
 export const vectorBackend = () => backend;
@@ -20,6 +23,26 @@ export const vectorIndexDefinition = (dims: number) => ({
   ],
 });
 
+/** Creates the vector index on a collection if missing, or updates it when its shape changed. */
+async function ensureVectorIndex(m: typeof Chunk | typeof NoteVector, name: string, definition: ReturnType<typeof vectorIndexDefinition>) {
+  // Search indexes need the collection to exist.
+  await m.createCollection().catch(() => undefined);
+  const coll = m.collection;
+  type IndexField = { type: string; path?: string; numDimensions?: number };
+  const [existing] = (await coll.listSearchIndexes(name).toArray()) as { latestDefinition?: { fields?: IndexField[] } }[];
+  if (!existing) {
+    await coll.createSearchIndex({ name, type: 'vectorSearch', definition });
+    console.log(`Created Atlas vector index ${name} (it becomes queryable within a minute or two)`);
+    return;
+  }
+  const fields = existing.latestDefinition?.fields ?? [];
+  const dims = fields.find((f) => f.type === 'vector')?.numDimensions;
+  if (dims !== definition.fields[0].numDimensions || !fields.some((f) => f.path === 'model')) {
+    await coll.updateSearchIndex(name, definition);
+    console.log(`Updated Atlas vector index ${name}`);
+  }
+}
+
 /**
  * Picks the search backend at startup. For `atlas`/`auto` it creates the vector index if missing
  * (or updates it when the embedding size changed). `auto` falls back to in-memory search when the
@@ -31,23 +54,9 @@ export async function initVectorBackend() {
     return backend;
   }
   try {
-    const coll = Chunk.collection;
     const definition = vectorIndexDefinition(embeddingProvider().dims);
-    // Search indexes need the collection to exist.
-    await Chunk.createCollection().catch(() => undefined);
-    type IndexField = { type: string; path?: string; numDimensions?: number };
-    const [existing] = (await coll.listSearchIndexes(VECTOR_INDEX).toArray()) as { latestDefinition?: { fields?: IndexField[] } }[];
-    if (!existing) {
-      await coll.createSearchIndex({ name: VECTOR_INDEX, type: 'vectorSearch', definition });
-      console.log('Created Atlas vector index (it becomes queryable within a minute or two)');
-    } else {
-      const fields = existing.latestDefinition?.fields ?? [];
-      const dims = fields.find((f) => f.type === 'vector')?.numDimensions;
-      if (dims !== definition.fields[0].numDimensions || !fields.some((f) => f.path === 'model')) {
-        await coll.updateSearchIndex(VECTOR_INDEX, definition);
-        console.log('Updated Atlas vector index definition');
-      }
-    }
+    await ensureVectorIndex(Chunk, VECTOR_INDEX, definition);
+    await ensureVectorIndex(NoteVector, NOTE_VECTOR_INDEX, definition);
     backend = 'atlas';
   } catch (e) {
     if (env.VECTOR_BACKEND === 'atlas') throw e;
@@ -83,4 +92,32 @@ export async function nearestChunks(userId: string, model: string, queryVector: 
     chunks.map((c) => ({ noteId: String(c.noteId), text: c.text, score: cosine(queryVector, c.embedding) })),
     k
   );
+}
+
+/** The user's k most similar notes to `vector`, by their note vectors (scores in [-1, 1]). */
+export async function nearestNotes(userId: string, model: string, vector: number[], k: number): Promise<NoteHit[]> {
+  if (backend === 'atlas') {
+    const rows = await NoteVector.aggregate<{ noteId: Types.ObjectId; score: number }>([
+      {
+        $vectorSearch: {
+          index: NOTE_VECTOR_INDEX,
+          path: 'embedding',
+          queryVector: vector,
+          numCandidates: Math.max(100, k * 10),
+          limit: k,
+          filter: { userId: new Types.ObjectId(userId), model },
+        },
+      },
+      { $project: { _id: 0, noteId: 1, score: { $meta: 'vectorSearchScore' } } },
+    ]);
+    return rows.map((r) => ({ noteId: String(r.noteId), score: 2 * r.score - 1 }));
+  }
+  const all = await NoteVector.find({ userId, model }, { noteId: 1, embedding: 1 }).lean();
+  return topK(all.map((v) => ({ noteId: String(v.noteId), score: cosine(vector, v.embedding) })), k);
+}
+
+/** A note's own vector, if it has been processed with the current model. */
+export async function noteVectorOf(userId: string, noteId: string, model: string): Promise<number[] | null> {
+  const v = await NoteVector.findOne({ userId, noteId, model }, { embedding: 1 }).lean();
+  return v?.embedding ?? null;
 }

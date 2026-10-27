@@ -7,6 +7,7 @@
 import mongoose from 'mongoose';
 import { connectDb } from '../src/config/db';
 import { Chunk } from '../src/models/Chunk';
+import { NoteVector } from '../src/models/NoteVector';
 import { embeddingProvider } from '../src/platform/ai-client';
 import { backfill } from '../src/modules/ai-processing/jobs';
 
@@ -14,6 +15,7 @@ async function main() {
   await connectDb(); // also updates the Atlas index if the vector size changed
   const { model } = embeddingProvider();
   const removed = await Chunk.deleteMany({ model: { $ne: model } });
+  await NoteVector.deleteMany({ model: { $ne: model } });
   const queued = await backfill({});
   console.log(`Model ${model}: queued ${queued} notes, removed ${removed.deletedCount} chunks from other models.`);
   console.log('Start the worker (npm run worker -w apps/api) if it is not running.');

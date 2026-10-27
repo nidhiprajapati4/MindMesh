@@ -1,10 +1,12 @@
 # MindMesh AI
 
-**Phase 4 (current): Ask your notes.** Answers only from your own notes, with citations, and free by default: "smart quotes" pick the best-matching sentences using the local search model, with no API key or cost. Claude can optionally write the answers instead (`ANTHROPIC_API_KEY`, paid). See [phase4_Readme.md](phase4_Readme.md).
+**Phase 5 (current): Smart organization.** Related notes, tag and folder suggestions while you write, duplicate warnings and a "Possible duplicates" page, and key points for long notes, all from the free local search model, with nothing changed automatically. See [phase5_Readme.md](phase5_Readme.md).
+
+**Phase 4: Ask your notes.** Answers only from your own notes, with citations, and free by default: "smart quotes" pick the best-matching sentences using the local search model, with no API key or cost. Claude can optionally write the answers instead (`ANTHROPIC_API_KEY`, paid). See [phase4_Readme.md](phase4_Readme.md).
 
 **Phase 3:** ingestion, embeddings and search by meaning. It adds a background worker, so run `npm run dev:worker` alongside the API and web app.
 
-Phase details: [Phase 1](phase1_Readme.md) · [Phase 2](phase2_Readme.md) · [Phase 3](phase3_Readme.md) · [Phase 4](phase4_Readme.md) ([test scenarios](phase4_Test_Scenarios.md)).
+Phase details: [Phase 1](phase1_Readme.md) · [Phase 2](phase2_Readme.md) · [Phase 3](phase3_Readme.md) · [Phase 4](phase4_Readme.md) ([test scenarios](phase4_Test_Scenarios.md)) · [Phase 5](phase5_Readme.md) ([test scenarios](phase5_Test_Scenarios.md)).
 
 ## Phase 2: Organize, search & capture (no AI)
 

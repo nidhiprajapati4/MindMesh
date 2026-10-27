@@ -5,7 +5,8 @@ import { Conversation } from '../models/Conversation';
 import { Note } from '../models/Note';
 import { ProcessingJob } from '../models/ProcessingJob';
 import { Usage } from '../models/Usage';
-import { backfill } from '../modules/ai-processing/jobs';
+import { backfill, backfillNoteVectors } from '../modules/ai-processing/jobs';
+import { NoteVector } from '../models/NoteVector';
 import { initVectorBackend } from '../modules/search/vector-store';
 import { env } from './env';
 
@@ -24,9 +25,13 @@ async function migrate() {
   if (modifiedCount) console.log(`Backfilled ${modifiedCount} notes to Phase 2 shape`);
   await Promise.all([
     Note.syncIndexes(), Folder.syncIndexes(), Chunk.syncIndexes(), ProcessingJob.syncIndexes(), Usage.syncIndexes(), Conversation.syncIndexes(),
+    NoteVector.syncIndexes(),
   ]);
   // Phase 3: notes saved before embeddings existed get queued once so they become searchable by meaning.
   const queued = await backfill({ processing: null });
   if (queued) console.log(`Queued ${queued} existing notes for embedding`);
+  // Phase 5: notes embedded before note vectors existed get one from their stored chunks (no re-embedding).
+  const built = await backfillNoteVectors();
+  if (built) console.log(`Built note vectors for ${built} existing notes`);
   await initVectorBackend();
 }

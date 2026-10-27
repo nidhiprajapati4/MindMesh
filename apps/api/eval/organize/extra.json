@@ -1,0 +1,72 @@
+{
+  "folders": {
+    "Engineering": ["backend", "database", "react", "devops", "git", "auth", "frontend", "python", "typescript", "testing", "release", "process", "ops", "ml", "paper"],
+    "Work": ["finance", "team", "career", "planning", "research", "growth", "incident"],
+    "Personal": ["learning", "books", "science", "climate", "ideas", "cooking", "travel", "money", "fitness", "health"]
+  },
+  "nearDuplicates": [
+    { "of": "n01", "title": "Retry helper (copy)", "content": "Wrap outbound HTTP requests in exponential backoff with jitter. Only retry on 429 and 5xx responses, and cap it at five attempts." },
+    { "of": "n06", "title": "JWT refresh", "content": "Access tokens live for 15 minutes; the refresh token is an httpOnly cookie that is rotated on every use. Reusing an old refresh token revokes the whole session family." },
+    { "of": "n11", "title": "Q3 report", "content": "Revenue grew 12 percent quarter over quarter. Churn fell to 3 percent after we redesigned onboarding. Gross margin held at 71 percent." },
+    { "of": "n20", "title": "Spaced repetition notes", "content": "Review the cards at growing intervals: one day, three days, a week, a month. The Ebbinghaus curve shows most new information is lost within days without review." },
+    { "of": "n26", "title": "Sourdough starter tips", "content": "Feed the starter equal weights of flour and water every day. It's ready to bake with when it doubles within six hours and smells tangy." },
+    { "of": "n30", "title": "Box breathing technique", "content": "Inhale for four seconds, hold for four, exhale for four, hold for four. Five rounds calm the nerves before a presentation." },
+    { "of": "n32", "title": "Redis caching", "content": "Cache-aside: read from Redis; on a miss, load from the database and set it with a TTL. Invalidate the key on write instead of updating it." },
+    { "of": "n38", "title": "Time zones", "content": "Store timestamps in UTC and only convert to the viewer's time zone when displaying. Daylight saving shifts break naive date arithmetic." }
+  ],
+  "denseTopics": [
+    {
+      "folder": "Kitchen", "tags": ["baking"],
+      "notes": [
+        { "title": "Sourdough hydration", "content": "A 75 percent hydration dough is sticky but gives an open crumb. Use wet hands and coil folds instead of kneading." },
+        { "title": "Proofing bread overnight", "content": "Shape the loaf in the evening and proof it in the fridge overnight. Cold proofing develops flavour and makes scoring easier." },
+        { "title": "Baking in a Dutch oven", "content": "Preheat the Dutch oven to 250 degrees, bake the loaf covered for 20 minutes, then uncovered until the crust is deep brown." },
+        { "title": "Feeding a sourdough starter", "content": "Discard half the starter and feed it equal weights of flour and water. It is ready when it doubles and smells tangy." }
+      ]
+    },
+    {
+      "folder": "Training", "tags": ["running"],
+      "notes": [
+        { "title": "Easy run pace", "content": "Most runs should be at conversational pace. If you cannot talk in full sentences, slow down." },
+        { "title": "Interval session", "content": "Six repeats of 800 metres at 5K pace with 400 metres of jogging between them. Warm up and cool down for ten minutes." },
+        { "title": "Long run fuelling", "content": "On runs over 90 minutes take a gel every 40 minutes and sip water. Practise race-day fuelling in training." },
+        { "title": "Taper before a race", "content": "Cut weekly mileage by about 40 percent in the last ten days before a race but keep some short fast efforts." }
+      ]
+    },
+    {
+      "folder": "Platform", "tags": ["kubernetes"],
+      "notes": [
+        { "title": "Pod resource limits", "content": "Set CPU and memory requests on every pod. Without memory limits one pod can starve the whole node." },
+        { "title": "Rolling deployments", "content": "Use maxSurge and maxUnavailable to control how many pods are replaced at once during a rolling update." },
+        { "title": "Debugging CrashLoopBackOff", "content": "Check kubectl logs with the previous flag and describe the pod to see why the container keeps restarting." },
+        { "title": "Horizontal pod autoscaler", "content": "The HPA scales the number of pods on CPU usage or custom metrics. Set sensible minimum and maximum replicas." }
+      ]
+    },
+    {
+      "folder": "Money", "tags": ["investing"],
+      "notes": [
+        { "title": "Index fund basics", "content": "A low-cost global index fund spreads risk across thousands of companies. Fees matter more than picking winners." },
+        { "title": "Dollar-cost averaging", "content": "Investing a fixed amount every month smooths out the price you pay and removes the temptation to time the market." },
+        { "title": "Rebalancing a portfolio", "content": "Once a year, sell what has grown beyond its target share and buy what has fallen behind to keep the stock and bond mix." },
+        { "title": "Emergency fund first", "content": "Keep three to six months of expenses in cash before investing, so a surprise bill never forces you to sell stocks." }
+      ]
+    }
+  ],
+  "longNotes": [
+    {
+      "title": "Onboarding redesign retrospective",
+      "content": "We started the onboarding redesign in March because trial users kept dropping out on the second step of signup. The old wizard asked for eleven fields before showing any value.\n\nThe new flow asks for an email and a workspace name only. Everything else is collected later, in context. We also added a progress indicator and sample data so the dashboard is never empty.\n\nResults after six weeks: trial-to-paid conversion rose from 9 percent to 14 percent. Support tickets about signup fell by half. Churn in the first month dropped to 3 percent.\n\nWhat we would do differently: test with real customers earlier, and ship the progress indicator first, since it was cheap and helped the most. The team agreed to run a usability session every two weeks from now on.",
+      "facts": [["14 percent", "9 percent"], ["email and a workspace name", "only"], ["progress indicator"]]
+    },
+    {
+      "title": "Database outage postmortem (detailed)",
+      "content": "At 02:10 the primary database stopped accepting writes. The on-call engineer was paged at 02:14 and found the data disk at 100 percent.\n\nThe root cause was WAL archiving: the archive command had been failing silently for three days after a credentials rotation, so write-ahead log files piled up on the primary. Nobody noticed because there was no alert on archive failures.\n\nWe freed space by moving old WAL files to cold storage and restarting archiving with the new credentials. Writes recovered at 02:52, so the outage lasted 42 minutes. No data was lost.\n\nAction items: alert when disk usage passes 80 percent, alert on any archive command failure, and add the archive credentials to the rotation checklist. Owner for all three is the platform team, due by the end of the month.",
+      "facts": [["WAL", "archiv"], ["42 minutes"], ["80 percent", "alert"]]
+    },
+    {
+      "title": "Notes on Deep Work",
+      "content": "Cal Newport defines deep work as professional activity performed in a state of distraction-free concentration that pushes your cognitive abilities to their limit. Shallow work is the opposite: logistical tasks performed while distracted.\n\nHis central claim is that deep work is becoming rarer and more valuable at the same time. People who cultivate it will thrive.\n\nHe suggests four strategies for scheduling it: monastic, bimodal, rhythmic and journalistic. The rhythmic approach, a fixed block every day, works for most people.\n\nOther rules: embrace boredom instead of reaching for your phone, quit social media that does not clearly serve your goals, and drain the shallows by batching email and meetings. Track deep hours on a tally sheet to stay honest.",
+      "facts": [["distraction-free", "concentration"], ["rarer", "valuable"]]
+    }
+  ]
+}

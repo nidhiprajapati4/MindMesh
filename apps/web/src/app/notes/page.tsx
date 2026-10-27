@@ -71,6 +71,7 @@ const toDraft = (n: Note): Draft => ({
   folderId: n.folderId ?? '',
   sourceUrl: n.sourceUrl ?? '',
   metadata: n.metadata ?? {},
+  keyPoints: n.keyPoints ?? [],
 });
 
 export default function NotesPage() {
@@ -261,16 +262,23 @@ export default function NotesPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [editor, newNote, router]);
 
-  // A citation on the Ask page links here as /notes?open=<id>: open that note in the editor.
+  /** Opens a note by id in the editor (citations, related notes, duplicate warnings). */
+  const openNoteById = useCallback(
+    (id: string) =>
+      api<Note>(`/api/notes/${id}`)
+        .then((n) => (n.deletedAt ? setError('That note is in the trash. Restore it to open it.') : openEditor(toDraft(n))))
+        .catch(() => setError('That note no longer exists.')),
+    [openEditor]
+  );
+
+  // Citations on the Ask page and the duplicates page link here as /notes?open=<id>.
   useEffect(() => {
     if (!user) return;
     const id = new URLSearchParams(window.location.search).get('open');
     if (!id) return;
     router.replace('/notes');
-    api<Note>(`/api/notes/${id}`)
-      .then((n) => (n.deletedAt ? setError('That note is in the trash. Restore it to open it.') : openEditor(toDraft(n))))
-      .catch(() => setError('That note no longer exists.'));
-  }, [user, openEditor, router]);
+    void openNoteById(id);
+  }, [user, openNoteById, router]);
 
   /** Editor actions report errors inside the dialog instead of the page banner. */
   const runEditor = async (fn: () => Promise<string>) => {
@@ -508,6 +516,7 @@ export default function NotesPage() {
           onSave={save}
           onCancel={closeEditor}
           onUpload={upload}
+          onOpenNote={(id) => void openNoteById(id)}
         />
       )}
 
