@@ -1,6 +1,10 @@
 # MindMesh AI
 
-**Phase 3 (current): ingestion, embeddings and search by meaning.** See [phase3_Readme.md](phase3_Readme.md). It adds a background worker, so run `npm run dev:worker` alongside the API and web app. Phase details: [Phase 1](phase1_Readme.md) · [Phase 2](phase2_Readme.md) · [Phase 3](phase3_Readme.md).
+**Phase 4 (current): Ask your notes.** Answers written by Claude only from your own notes, with citations. See [phase4_Readme.md](phase4_Readme.md); set `ANTHROPIC_API_KEY` in `apps/api/.env` for real answers (a free fake answerer is used until then).
+
+**Phase 3:** ingestion, embeddings and search by meaning. It adds a background worker, so run `npm run dev:worker` alongside the API and web app.
+
+Phase details: [Phase 1](phase1_Readme.md) · [Phase 2](phase2_Readme.md) · [Phase 3](phase3_Readme.md) · [Phase 4](phase4_Readme.md).
 
 ## Phase 2: Organize, search & capture (no AI)
 

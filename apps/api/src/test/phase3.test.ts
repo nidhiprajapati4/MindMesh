@@ -219,8 +219,11 @@ describe('Search', () => {
   it('S-02 hybrid marks items found both ways and ranks them first', async () => {
     const r = await search(A, 'backoff jitter');
     assert.equal(r.status, 200);
-    assert.equal(r.body.items[0].note._id, retry._id);
-    assert.equal(r.body.items[0].matchedBy, 'both');
+    // Earlier tests also created a "Retry helper" note with both words, so either may come first;
+    // what matters is that items found both ways lead the list and are labelled as such.
+    const both = r.body.items.filter((i: { matchedBy: string }) => i.matchedBy === 'both');
+    assert.ok(both.some((i: { note: { _id: string } }) => i.note._id === retry._id));
+    assert.deepEqual(r.body.items.slice(0, both.length), both, 'an item matched only one way outranks one matched both ways');
   });
 
   it('S-03 keyword mode matches words only and has no snippets', async () => {

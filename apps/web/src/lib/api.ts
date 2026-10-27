@@ -52,9 +52,10 @@ export const isIndexing = (n: Note) => n.processing?.status === 'pending' || n.p
 export type Folder = { _id: string; name: string; color: string | null; noteCount: number };
 export type FolderList = { folders: Folder[]; unfiledCount: number };
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** Sends a request to the API with the signed-in user's token; returns the raw response. */
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const token = await auth.currentUser?.getIdToken();
-  const res = await fetch(`${API_URL}${path}`, {
+  return fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       // FormData sets its own multipart Content-Type (with boundary).
@@ -63,12 +64,41 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init.headers,
     },
   });
+}
+
+/** Error carrying the API's machine-readable `code` (e.g. QUOTA_EXCEEDED) when it sent one. */
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public code?: string) {
+    super(message);
+  }
+}
+
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await apiFetch(path, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `Request failed (${res.status})`);
+    throw new ApiError(body.error ?? `Request failed (${res.status})`, res.status, body.code);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
+
+// --- Ask your notes (Phase 4) ---------------------------------------------------------------
+
+export type AnswerSource = { index: number; noteId: string; title: string; type?: NoteType };
+export type TurnCitation = { source: number; quote: string };
+export type TurnSegment = { text: string; citations: TurnCitation[] };
+export type TurnStatus = 'complete' | 'not_found' | 'stopped' | 'error';
+export type Turn = {
+  question: string;
+  segments: TurnSegment[];
+  sources: { noteId: string; title: string }[];
+  status: TurnStatus;
+  error: string | null;
+  feedback: { rating: 'up' | 'down' | null; comment: string };
+  createdAt: string;
+};
+export type Conversation = { _id: string; title: string; turns: Turn[]; updatedAt: string };
+export type ConversationSummary = { _id: string; title: string; updatedAt: string; turnCount: number };
 
 /** Only render links the browser can't turn into script execution. */
 export const safeHref = (url: string | null) => (url && /^https?:\/\//i.test(url) ? url : undefined);

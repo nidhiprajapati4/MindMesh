@@ -27,17 +27,45 @@ export function topK<T extends { score: number }>(items: Iterable<T>, k: number)
 
 export const RRF_K = 60;
 
+const STOPWORDS = new Set(
+  'the and for with from into onto that this these those what when where which who whom whose why how does did done doing are was were been being have has had having can could should would will shall may might must not but nor yet our ours your yours their theirs them they its his her him she you about after again all also any because before both each few more most other some such than then there too very just only own same out off over under keep keeps get gets got make makes my me i a an to of in on at by is it do be as or if so no up'.split(' ')
+);
+
+const terms = (text: string) =>
+  [...new Set((text.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length >= 3 && !STOPWORDS.has(w)))];
+
+/** Crude stem (retries → retri, timing → tim) so plurals and tenses still match by prefix. */
+const stem = (w: string) => w.replace(/(ing|ies|es|ed|ly|s)$/, '') || w;
+
 /**
- * Reciprocal-rank fusion of ranked id lists: each list adds 1 / (k + rank) per item, so items
- * ranked well by several lists rise to the top. Returns ids best first with their fused score
- * and which lists (by index) contained them.
+ * How well a keyword hit actually covers the query: the number and share of the query's content
+ * words that appear in the text. A note matching one incidental word of a long question is a
+ * weak keyword hit.
  */
-export function rrf(lists: string[][], k = RRF_K) {
+export function termCoverage(query: string, text: string) {
+  const qs = terms(query);
+  const haystack = text.toLowerCase();
+  const matched = qs.filter((w) => haystack.includes(stem(w))).length;
+  return { matched, share: qs.length ? matched / qs.length : 0 };
+}
+
+/** A keyword hit worth counting in hybrid search: it matches at least two, or half, of the query's content words. */
+export const isStrongKeywordHit = (query: string, text: string) => {
+  const c = termCoverage(query, text);
+  return c.matched >= 2 || c.share >= 0.5;
+};
+
+/**
+ * Reciprocal-rank fusion of ranked id lists: each list adds weight / (k + rank) per item, so items
+ * ranked well by several lists rise to the top, and a more trusted list can count for more.
+ * Returns ids best first with their fused score and which lists (by index) contained them.
+ */
+export function rrf(lists: string[][], k = RRF_K, weights: number[] = []) {
   const scores = new Map<string, { score: number; lists: number[] }>();
   lists.forEach((ids, li) =>
     ids.forEach((id, rank) => {
       const s = scores.get(id) ?? { score: 0, lists: [] };
-      s.score += 1 / (k + rank + 1);
+      s.score += (weights[li] ?? 1) / (k + rank + 1);
       s.lists.push(li);
       scores.set(id, s);
     })

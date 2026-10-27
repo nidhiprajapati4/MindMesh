@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { env } from './config/env';
 import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errors';
+import { askRouter, conversationsRouter } from './modules/ask/ask.routes';
 import foldersRouter from './modules/folders/folders.routes';
 import notesRouter from './modules/notes/notes.routes';
 import searchRouter from './modules/search/search.routes';
@@ -24,5 +25,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
 app.use('/api/notes', requireAuth, notesRouter);
 app.use('/api/folders', requireAuth, foldersRouter);
 app.use('/api/search', requireAuth, searchRouter);
+app.use('/api/ask', requireAuth, askRouter);
+app.use('/api/conversations', requireAuth, conversationsRouter);
 
 app.use(errorHandler);

@@ -23,6 +23,11 @@ const schema = z
     AI_DAILY_TOKEN_BUDGET: z.coerce.number().int().positive().default(200_000),
     // auto = Atlas Vector Search when the index is available, else in-memory cosine search.
     VECTOR_BACKEND: z.enum(['auto', 'atlas', 'memory']).default('auto'),
+
+    // Phase 4: answers from notes. Defaults to Claude when a key is set, else the fake answerer.
+    ANTHROPIC_API_KEY: z.string().optional(),
+    ANSWER_PROVIDER: z.enum(['anthropic', 'fake']).optional(),
+    ANSWER_MODEL: z.string().default('claude-opus-5-5'),
   })
   .superRefine((e, ctx) => {
     if (e.FIREBASE_AUTH_EMULATOR_HOST && e.NODE_ENV === 'production') {
@@ -33,6 +38,9 @@ const schema = z
     }
     if (e.EMBEDDING_PROVIDER === 'openai' && !e.OPENAI_API_KEY) {
       ctx.addIssue({ code: 'custom', message: 'OPENAI_API_KEY is required when EMBEDDING_PROVIDER=openai' });
+    }
+    if (e.ANSWER_PROVIDER === 'anthropic' && !e.ANTHROPIC_API_KEY) {
+      ctx.addIssue({ code: 'custom', message: 'ANTHROPIC_API_KEY is required when ANSWER_PROVIDER=anthropic' });
     }
   });
 

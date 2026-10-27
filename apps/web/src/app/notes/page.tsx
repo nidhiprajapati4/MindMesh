@@ -252,11 +252,25 @@ export default function NotesPage() {
       } else if (e.key === '/') {
         e.preventDefault();
         searchRef.current?.focus();
+      } else if (e.key === '?') {
+        e.preventDefault();
+        router.push('/ask');
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editor, newNote]);
+  }, [editor, newNote, router]);
+
+  // A citation on the Ask page links here as /notes?open=<id>: open that note in the editor.
+  useEffect(() => {
+    if (!user) return;
+    const id = new URLSearchParams(window.location.search).get('open');
+    if (!id) return;
+    router.replace('/notes');
+    api<Note>(`/api/notes/${id}`)
+      .then((n) => (n.deletedAt ? setError('That note is in the trash. Restore it to open it.') : openEditor(toDraft(n))))
+      .catch(() => setError('That note no longer exists.'));
+  }, [user, openEditor, router]);
 
   /** Editor actions report errors inside the dialog instead of the page banner. */
   const runEditor = async (fn: () => Promise<string>) => {

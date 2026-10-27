@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRef, useState, type FormEvent } from 'react';
 import { NOTE_TYPES, TYPE_LABELS, type Folder, type FolderList, type NoteType } from '@/lib/api';
 
@@ -100,6 +101,9 @@ export function Sidebar({ filters, onChange, folders, tags, onCreateFolder, onRe
           New item <kbd className="ml-1 rounded bg-white/20 px-1 text-xs">N</kbd>
         </button>
         <button className="btn-ghost" onClick={onUpload}>Upload file</button>
+        <Link href="/ask" className="btn-ghost flex items-center justify-center gap-1.5" title="Ask a question and get an answer from your notes ( ? )">
+          Ask your notes <kbd className="rounded bg-paper px-1 text-[10px] text-muted">?</kbd>
+        </Link>
       </div>
 
       <Divider />

@@ -21,6 +21,9 @@ export async function startTestApi() {
     EMBEDDING_PROVIDER: 'fake',
     VECTOR_BACKEND: 'memory',
     AI_DAILY_TOKEN_BUDGET: '200000',
+    // Never call a paid model from tests, even if apps/api/.env has a real key.
+    ANSWER_PROVIDER: 'fake',
+    ANTHROPIC_API_KEY: '',
   });
   const { adminAuth } = await import('../config/firebase.js');
   // The Admin SDK would call the Auth emulator over HTTP; check the same claims locally instead.

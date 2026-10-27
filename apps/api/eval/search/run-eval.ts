@@ -18,6 +18,7 @@ type Mode = 'keyword' | 'semantic' | 'hybrid';
 const MODES: Mode[] = ['keyword', 'semantic', 'hybrid'];
 const DEPTH = 10; // ranks beyond this count as "not found"
 const SWEEP = [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5];
+const HYBRID_WEIGHTS = [1, 1.5, 2, 3, 5];
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dataset: Item[] = JSON.parse(readFileSync(path.join(here, 'dataset.json'), 'utf8'));
@@ -105,7 +106,30 @@ async function main() {
     };
   });
 
-  // 3. Report.
+  // 3. Hybrid weight sweep: how much should meaning results count against keyword results?
+  const { hybridWeights } = await import('../../src/modules/search/search.service.js');
+  const chosenWeight = hybridWeights.meaning;
+  const weightSweep = [];
+  for (const w of HYBRID_WEIGHTS) {
+    hybridWeights.meaning = w;
+    const ranks = new Map<string, number | null>();
+    for (const q of positives) {
+      const res = await search(userId, { q: q.query, mode: 'hybrid', limit: DEPTH });
+      const at = res.items.map((h) => idOf.get(String(h.note._id))).indexOf(q.expected!);
+      ranks.set(q.id, at >= 0 ? at + 1 : null);
+    }
+    const score = (kind: Query['kind']) => {
+      const qs = positives.filter((q) => q.kind === kind);
+      return {
+        recall5: qs.filter((q) => (ranks.get(q.id) ?? 99) <= 5).length / qs.length,
+        mrr: qs.reduce((s, q) => s + (ranks.get(q.id) ? 1 / ranks.get(q.id)! : 0), 0) / qs.length,
+      };
+    };
+    weightSweep.push({ w, keyword: score('keyword'), paraphrase: score('paraphrase') });
+  }
+  hybridWeights.meaning = chosenWeight;
+
+  // 4. Report.
   const metrics = (subset: Row[], mode: Mode) => {
     const n = subset.length || 1;
     const recall5 = subset.filter((r) => r.rank[mode] !== null && r.rank[mode]! <= 5).length / n;
@@ -150,6 +174,15 @@ async function main() {
     lines.push(`| ${s.t.toFixed(2)}${mark} | ${pct(s.recallAll)} | ${pct(s.recallPara)} | ${s.shown.toFixed(1)} | ${s.noise.toFixed(1)} | ${s.noisyQueries} / ${offtopic.length} |`);
   }
 
+  lines.push('', '## Hybrid weight sweep', '');
+  lines.push('Hybrid ("Both") merges the keyword and meaning rankings with reciprocal-rank fusion. The weight is how much a meaning match counts relative to a keyword match.', '');
+  lines.push('| Meaning weight | Keyword-style recall@5 | Keyword-style MRR | Paraphrase recall@5 | Paraphrase MRR |');
+  lines.push('|---|---|---|---|---|');
+  for (const s of weightSweep) {
+    const mark = s.w === chosenWeight ? ' **(chosen)**' : '';
+    lines.push(`| ${s.w}${mark} | ${pct(s.keyword.recall5)} | ${s.keyword.mrr.toFixed(2)} | ${pct(s.paraphrase.recall5)} | ${s.paraphrase.mrr.toFixed(2)} |`);
+  }
+
   lines.push('', '## Per-query ranks', '', 'Rank of the expected note in each mode (— = not in the top 10). Off-topic rows show the number of results instead.', '');
   lines.push('| ID | Kind | Query | Expected | Keyword | Semantic | Hybrid |');
   lines.push('|---|---|---|---|---|---|---|');
@@ -179,7 +212,8 @@ async function main() {
   writeFileSync(outFile, lines.join('\n') + '\n');
 
   const section = (start: string, end: string) => lines.slice(lines.indexOf(start), lines.indexOf(end)).join('\n');
-  console.log(section('## Results', '## Per-query ranks'));
+  console.log(section('## Results', '## Threshold sweep (semantic)'));
+  console.log(section('## Hybrid weight sweep', '## Per-query ranks'));
   console.log(`Misses (hybrid top 5): ${misses.map((r) => r.q.id).join(', ') || 'none'}`);
   console.log(`Wrote ${outFile}`);
   await mongoose.disconnect();

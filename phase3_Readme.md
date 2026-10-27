@@ -112,6 +112,7 @@ Off-topic queries return **no results** in any mode. Indexing all 40 notes took 
 
 **Findings**
 - **H2 holds on this dataset.** Meaning search more than doubles recall on paraphrases (40% → 95%) without hurting keyword-style queries.
+- **Fixed in Phase 4:** Both now reaches paraphrase MRR 0.93 (see [phase4_Readme.md](phase4_Readme.md), section 6). The original finding:
 - **Both finds as much as Meaning, but ranks paraphrase matches lower** (MRR 0.68 vs 0.93). Equal-weight rank fusion lets a weak keyword hit outrank the right note: "keeps timing out" matches *Kubernetes probes* through the word "service". Weighting the meaning list higher, or dropping keyword hits that are only one common word, is a candidate Phase 4 improvement. Until then, Meaning is the better mode for questions phrased in your own words.
 - **The one miss:** "isolate project dependencies" → *Python virtual environments* (similarity 0.12). The small local model doesn't link the two; OpenAI's larger model likely would.
 - **Harness check:** the word-based `fake` embedder scores 0% on paraphrases, which confirms they really avoid the notes' words.

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { fakeProvider } from '../../platform/embeddings/fake';
-import { cosine, rrf, topK } from '../search/rank';
+import { looksLikeFollowUp } from '../ask/follow-up';
+import { cosine, isStrongKeywordHit, rrf, termCoverage, topK } from '../search/rank';
 import { chunkText } from './chunk';
 import { cleanText, htmlToText } from './clean';
 import { contentHash, hasSearchableText } from './extract';
@@ -109,12 +110,38 @@ describe('ranking helpers', () => {
     assert.deepEqual(topK(items, 0), []);
   });
 
+  it('RANK-04 weighted fusion lets a trusted list count for more', () => {
+    // b is first in the keyword list only; a is first in the meaning list only.
+    assert.equal(rrf([['b'], ['a']])[0].id, 'b', 'equal weights: list order breaks the tie');
+    assert.equal(rrf([['b'], ['a']], 60, [1, 1.5])[0].id, 'a');
+    assert.ok(Math.abs(rrf([['b'], ['a']], 60, [1, 1.5])[0].score - 1.5 / 61) < 1e-12);
+  });
+
+  it('RANK-05 keyword hits must cover a fair share of the question', () => {
+    const q = 'what to do when a remote service keeps timing out';
+    // Content words: remote, service, timing ("keeps", "out" and the rest are stopwords).
+    assert.deepEqual(termCoverage(q, 'Readiness probe removes the pod from the service'), { matched: 1, share: 1 / 3 });
+    assert.equal(isStrongKeywordHit(q, 'Readiness probe removes the pod from the service'), false, 'one incidental word');
+    assert.equal(isStrongKeywordHit('exponential backoff jitter', 'Use exponential backoff with jitter'), true);
+    assert.equal(isStrongKeywordHit('readiness probe', 'Liveness and readiness probes'), true, 'plurals match');
+    assert.equal(isStrongKeywordHit('sourdough', 'Sourdough starter'), true, 'single-word queries still count');
+  });
+
   it('RANK-03 reciprocal-rank fusion favours items found by both lists', () => {
     const fused = rrf([['a', 'b', 'c'], ['c', 'd', 'a']]);
     assert.deepEqual(fused.map((f) => f.id).slice(0, 2).sort(), ['a', 'c']);
     assert.deepEqual(fused.find((f) => f.id === 'b')!.lists, [0]);
     assert.deepEqual(fused.find((f) => f.id === 'c')!.lists, [0, 1]);
     assert.ok(Math.abs(fused.find((f) => f.id === 'a')!.score - (1 / 61 + 1 / 63)) < 1e-12);
+  });
+});
+
+describe('follow-up detection (ask retrieval)', () => {
+  it('ASKR-01 questions that lean on earlier context are follow-ups; self-contained ones are not', () => {
+    for (const q of ['And how much does it cost?', 'what about the second one', 'Why?', 'How long does that take?', 'Is it safe?', 'Do they need feeding?'])
+      assert.equal(looksLikeFollowUp(q), true, q);
+    for (const q of ['volcanic eruptions in Iceland', 'How often should I feed the sourdough starter?', 'What is box breathing', 'Summarise my quarterly report figures for revenue and churn in detail please now'])
+      assert.equal(looksLikeFollowUp(q), false, q);
   });
 });
 

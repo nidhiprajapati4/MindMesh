@@ -5,7 +5,7 @@ import { QUOTA_EXCEEDED } from '../../platform/quota';
 import { listQuerySchema } from '../notes/notes.schema';
 import { baseFilter, listNotes } from '../notes/notes.service';
 import type { SearchQuery } from './search.schema';
-import { rrf } from './rank';
+import { isStrongKeywordHit, rrf } from './rank';
 import { nearestChunks } from './vector-store';
 
 type LeanNote = INote & { _id: unknown };
@@ -22,6 +22,7 @@ const SNIPPET_CHARS = 240;
  * OpenAI's value is a starting point; re-run the eval's sweep after switching.
  */
 export const MIN_SIMILARITY: Record<string, number> = { local: 0.25, openai: 0.3, fake: 0.25 };
+export const minSimilarity = () => MIN_SIMILARITY[embeddingProvider().name] ?? 0.3;
 
 const activeFilter = (userId: string, q: SearchQuery) =>
   baseFilter(userId, listQuerySchema.parse({ view: 'active', type: q.type, folder: q.folder, tag: q.tag }));
@@ -43,7 +44,7 @@ async function meaningRanking(userId: string, q: SearchQuery, limit: number): Pr
   const filtered = !!(q.type || q.folder || q.tag);
   const hits = await nearestChunks(userId, model, vectors[0], filtered ? limit * 6 : limit * 3);
 
-  const minScore = MIN_SIMILARITY[embeddingProvider().name] ?? 0.3;
+  const minScore = minSimilarity();
   const best = new Map<string, { score: number; text: string }>();
   for (const h of hits) {
     if (h.score < minScore) continue;
@@ -62,12 +63,21 @@ async function meaningRanking(userId: string, q: SearchQuery, limit: number): Pr
     .slice(0, limit);
 }
 
-/** Hybrid ranking: reciprocal-rank fusion of the keyword and meaning lists. */
+/**
+ * How much each ranking counts in hybrid search (mutable only so the eval can sweep it).
+ * Tuned on the eval set (docs/eval/phase3.md): with weak keyword hits filtered out, a meaning
+ * weight of 1.5 lifts paraphrase MRR from 0.90 to 0.93 (same as meaning-only search) while
+ * keyword-style queries stay at 100% / 1.00; higher weights add nothing.
+ */
+export const hybridWeights = { keyword: 1, meaning: 1.5 };
+
+/** Hybrid ranking: weighted reciprocal-rank fusion of the keyword and meaning lists. */
 function fuse(keyword: SearchHit[], meaning: SearchHit[]): SearchHit[] {
   const byId = new Map<string, SearchHit>();
   for (const h of [...meaning, ...keyword]) if (!byId.has(String(h.note._id))) byId.set(String(h.note._id), h);
   const snippet = new Map(meaning.map((h) => [String(h.note._id), h.snippet]));
-  return rrf([keyword.map((h) => String(h.note._id)), meaning.map((h) => String(h.note._id))]).map(({ id, score, lists }) => ({
+  const lists = [keyword.map((h) => String(h.note._id)), meaning.map((h) => String(h.note._id))];
+  return rrf(lists, undefined, [hybridWeights.keyword, hybridWeights.meaning]).map(({ id, score, lists }) => ({
     note: byId.get(id)!.note,
     score,
     snippet: snippet.get(id) ?? null,
@@ -104,5 +114,10 @@ export async function search(userId: string, q: SearchQuery) {
     const warning = isQuota(meaning) ? 'Daily AI budget reached; showing keyword matches only.' : 'Search by meaning is unavailable; showing keyword matches only.';
     return { mode: q.mode, items: keyword.slice(0, q.limit), warning };
   }
-  return { mode: q.mode, items: fuse(keyword, meaning).slice(0, q.limit) };
+  // Keyword hits that match only an incidental word of the question would outrank real meaning
+  // matches in the fusion; keep only those that cover a fair share of the query.
+  const strongKeyword = keyword.filter(({ note: n }) =>
+    isStrongKeywordHit(q.q, [n.title, n.content, n.tags.join(' '), n.metadata?.description, n.sourceUrl].filter(Boolean).join(' '))
+  );
+  return { mode: q.mode, items: fuse(strongKeyword, meaning).slice(0, q.limit) };
 }

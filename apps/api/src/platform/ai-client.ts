@@ -7,6 +7,9 @@ import { fakeProvider } from './embeddings/fake';
 import { localProvider } from './embeddings/local';
 import { openaiProvider } from './embeddings/openai';
 import type { EmbeddingProvider } from './embeddings/types';
+import { anthropicAnswerProvider } from './generation/anthropic';
+import { fakeAnswerProvider } from './generation/fake';
+import type { AnswerEvent, AnswerProvider, AnswerRequest, AnswerResult } from './generation/types';
 import { assertWithinBudget, recordUsage } from './quota';
 import { estimateTokens } from './tokens';
 
@@ -47,13 +50,17 @@ async function withRetries<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<
   }
 }
 
-/** Runs one provider call under the 20 s timeout (the abort signal alone can't stop CPU-bound local work). */
+/**
+ * Settles as soon as `signal` aborts, even if `p` never does (the abort signal alone can't stop
+ * CPU-bound local work or a provider that ignores it). Rejects with the abort reason if one was given.
+ */
 function withTimeout<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
-    const onAbort = () => reject(Object.assign(new Error('AI call timed out'), { name: 'TimeoutError' }));
-    if (signal.aborted) return onAbort();
-    signal.addEventListener('abort', onAbort, { once: true });
+    const onAbort = () => reject(signal.reason instanceof Error ? signal.reason : Object.assign(new Error('AI call timed out'), { name: 'TimeoutError' }));
+    // Always attach to `p` first: if it rejects after we gave up, that must not be an unhandled rejection.
     p.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
   });
 }
 
@@ -86,7 +93,85 @@ export async function embed(texts: string[], ctx: { userId: string; purpose: 'in
   return { vectors, model: p.model, dims: p.dims, tokens };
 }
 
-/** Text generation arrives in Phase 4 (RAG answers); the entry point exists so callers have one place to go. */
-export async function generate(_prompt: string, _ctx: { userId: string }): Promise<never> {
-  throw new Error('generate() is not available until Phase 4');
+// ---------------------------------------------------------------------------------------------
+// Answer generation (Phase 4)
+
+/**
+ * firstTokenMs: longest wait for the first streamed text, so a stuck request fails fast.
+ * totalMs: hard cap on a whole answer. Mutable only so tests can shorten them.
+ */
+export const answerTimeouts = { firstTokenMs: TIMEOUT_MS, totalMs: 120_000 };
+/** Output allowance reserved against the budget before the call (the real count is recorded after). */
+const ANSWER_OUTPUT_RESERVE = 1000;
+
+let answerer: AnswerProvider | null = null;
+
+export function answerProvider(): AnswerProvider {
+  const name = env.ANSWER_PROVIDER ?? (env.ANTHROPIC_API_KEY ? 'anthropic' : 'fake');
+  answerer ??= name === 'anthropic' ? anthropicAnswerProvider(env.ANTHROPIC_API_KEY!, env.ANSWER_MODEL) : fakeAnswerProvider;
+  return answerer;
+}
+
+/** Tests only: swap in an answer provider. */
+export function setAnswerProvider(p: AnswerProvider | null) {
+  answerer = p;
+}
+
+export type GenerateContext = { userId: string; signal?: AbortSignal; onEvent: (e: AnswerEvent) => void };
+
+/**
+ * Writes an answer from the given notes, streaming events through `onEvent`.
+ * Budget-checked before the call and charged with the real token counts after. Transient
+ * failures are retried only while nothing has been streamed yet, so the user never sees
+ * text from two attempts.
+ */
+export async function generateAnswer(req: AnswerRequest, ctx: GenerateContext): Promise<AnswerResult & { costUsd: number; ms: number }> {
+  const p = answerProvider();
+  const prompt = [req.question, ...req.history.flatMap((h) => [h.question, h.answer]), ...req.docs.map((d) => d.title + d.text)].join('');
+  await assertWithinBudget(ctx.userId, estimateTokens(prompt) + ANSWER_OUTPUT_RESERVE);
+
+  const started = Date.now();
+  for (let attempt = 1; ; attempt++) {
+    let streamed = false;
+    const controller = new AbortController();
+    const abort = (reason: string) => controller.abort(Object.assign(new Error(reason), { name: 'TimeoutError' }));
+    const onCallerAbort = () => controller.abort(ctx.signal?.reason);
+    ctx.signal?.addEventListener('abort', onCallerAbort, { once: true });
+    const firstToken = setTimeout(() => abort('AI call timed out'), answerTimeouts.firstTokenMs);
+    const total = setTimeout(() => abort('AI answer took too long'), answerTimeouts.totalMs);
+    try {
+      // Raced against the abort signal, so a provider that ignores cancellation can't hang the request.
+      const result = await withTimeout(
+        p.answer(req, {
+          signal: controller.signal,
+          onEvent: (e) => {
+            if (controller.signal.aborted) return; // nothing more reaches the caller after a cancel or timeout
+            if (!streamed) clearTimeout(firstToken);
+            streamed = true;
+            ctx.onEvent(e);
+          },
+        }),
+        controller.signal
+      );
+      const costUsd = +((result.inputTokens * p.costPerMillion.input + result.outputTokens * p.costPerMillion.output) / 1e6).toFixed(6);
+      await recordUsage(ctx.userId, { gen: result.inputTokens + result.outputTokens });
+      if (env.NODE_ENV !== 'test') {
+        console.log(
+          JSON.stringify({
+            evt: 'ai.answer', userId: ctx.userId, provider: p.name, model: result.model, docs: req.docs.length,
+            inputTokens: result.inputTokens, outputTokens: result.outputTokens, costUsd, ms: Date.now() - started, attempts: attempt,
+          })
+        );
+      }
+      return { ...result, costUsd, ms: Date.now() - started };
+    } catch (e) {
+      const err = controller.signal.aborted && !ctx.signal?.aborted ? controller.signal.reason : e;
+      if (streamed || ctx.signal?.aborted || attempt > MAX_RETRIES || !isRetryable(err)) throw err;
+      await new Promise((r) => setTimeout(r, backoffMs(attempt)));
+    } finally {
+      clearTimeout(firstToken);
+      clearTimeout(total);
+      ctx.signal?.removeEventListener('abort', onCallerAbort);
+    }
+  }
 }

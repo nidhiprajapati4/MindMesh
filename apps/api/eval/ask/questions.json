@@ -1,0 +1,23 @@
+[
+  { "id": "a01", "question": "How many times should a failed HTTP request be retried?", "expected": "n01", "facts": [["five", "5"]] },
+  { "id": "a02", "question": "Which index fixed the slow orders query?", "expected": "n02", "facts": [["user_id"], ["created_at"]] },
+  { "id": "a03", "question": "How big was our Docker image before and after the multi-stage build?", "expected": "n04", "facts": [["1.2 GB", "1.2GB"], ["140 MB", "140MB"]] },
+  { "id": "a04", "question": "How long do access tokens last in our auth setup?", "expected": "n06", "facts": [["15 minutes", "15 min", "fifteen minutes"]] },
+  { "id": "a05", "question": "What happens when a client runs out of rate-limit tokens?", "expected": "n08", "facts": [["429"]] },
+  { "id": "a06", "question": "How much did revenue grow last quarter?", "expected": "n11", "facts": [["12 percent", "12%", "twelve percent"]] },
+  { "id": "a07", "question": "What did the Acme customer find confusing about signing up?", "expected": "n15", "facts": [["step two", "too many fields"], ["progress"]] },
+  { "id": "a08", "question": "Why did the database go down?", "expected": "n17", "facts": [["disk"], ["WAL", "archiv"]] },
+  { "id": "a09", "question": "How often should I review flashcards?", "expected": "n20", "facts": [["1 day", "one day", "a day"], ["week"]] },
+  { "id": "a10", "question": "What does direct air capture cost?", "expected": "n23", "facts": [["400"]] },
+  { "id": "a11", "question": "How do I know my sourdough starter is ready?", "expected": "n26", "facts": [["double"], ["six hours", "6 hours"]] },
+  { "id": "a12", "question": "How big should my emergency fund be?", "expected": "n28", "facts": [["six months", "6 months"]] },
+  { "id": "a13", "question": "How do I do box breathing?", "expected": "n30", "facts": [["four", "4"]] },
+  { "id": "a14", "question": "How should I store timestamps?", "expected": "n38", "facts": [["UTC"]] },
+
+  { "id": "u01", "question": "What is the capital of Australia?", "expected": null, "facts": [] },
+  { "id": "u02", "question": "How do I change a car tyre?", "expected": null, "facts": [] },
+  { "id": "u03", "question": "What did the board decide about the office move?", "expected": null, "facts": [] },
+  { "id": "u04", "question": "How many nodes does our Kubernetes cluster have?", "expected": null, "facts": [], "note": "Related note (Kubernetes probes) exists but doesn't say" },
+  { "id": "u05", "question": "Who won the football match last night?", "expected": null, "facts": [] },
+  { "id": "u06", "question": "What is the interest rate on my mortgage?", "expected": null, "facts": [], "note": "Related note (personal finance) exists but doesn't say" }
+]
