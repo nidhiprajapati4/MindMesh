@@ -64,12 +64,12 @@ Firebase console → ⚙ Project settings → **Service accounts** → **Generat
    ```bash
    npm run build:web
    ```
-3. Sign in to Firebase and deploy. The Firebase CLI is a pinned dev dependency of this project (`npm install` added it), so these use that exact version:
+3. Sign in to Firebase and deploy. The Firebase CLI version is pinned so the steps stay the same (older 13.x versions now crash when downloaded fresh):
    ```bash
-   npx firebase login
+   npx -y firebase-tools@15.33.0 login
    ```
    ```bash
-   npx firebase deploy --only hosting
+   npx -y firebase-tools@15.33.0 deploy --only hosting
    ```
    It prints the address: `https://<project-id>.web.app`.
 4. Firebase console → **Authentication → Settings → Authorized domains**: make sure `<project-id>.web.app` and `<project-id>.firebaseapp.com` are listed (Firebase usually adds them; Google sign-in fails without them).
@@ -106,4 +106,4 @@ Keeping it running, logs, error codes and key rotation: [operations.md](operatio
 | First request after a while takes up to a minute | Normal on the free plan: the API was asleep |
 | Notes stay "Processing…" | The API was asleep; they continue when it wakes. `/ready` should show `"worker":"running"` |
 | `npm run build:web` fails with `EPERM … .next\trace` | `npm run dev:web` is still running and holds the `.next` folder: stop it first |
-| `npx firebase-tools@…` fails with `ERR_REQUIRE_ESM` (uuid) | A fresh download picks up a broken `universal-analytics` release; use `npx firebase …` instead, which runs the project's pinned copy |
+| `npx firebase-tools@13.x` fails with `ERR_REQUIRE_ESM` (uuid) | Old 13.x versions pick up a broken `universal-analytics` release when downloaded fresh; use `firebase-tools@15.33.0` as above |

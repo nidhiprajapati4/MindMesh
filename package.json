@@ -13,19 +13,15 @@
     "build:api": "npm run build -w apps/api",
     "build:web": "npm run export -w apps/web",
     "check": "npm run typecheck && npm test && npm run build:api && npm run build:web",
-    "deploy:web": "npm run build:web && firebase deploy --only hosting"
+    "deploy:web": "npm run build:web && npx -y firebase-tools@15.33.0 deploy --only hosting"
   },
   "overrides": {
     "onnxruntime-node": "1.19.2",
     "@huggingface/transformers": {
       "sharp": "0.35.5"
-    },
-    "universal-analytics": "0.5.3"
+    }
   },
   "engines": {
     "node": ">=20 <23"
-  },
-  "devDependencies": {
-    "firebase-tools": "13.29.1"
   }
 }
