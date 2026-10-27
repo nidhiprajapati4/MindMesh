@@ -8,12 +8,14 @@
     "start": "next start"
   },
   "dependencies": {
+    "d3-force": "3.0.0",
     "firebase": "^11.0.2",
     "next": "^15.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/d3-force": "3.0.10",
     "@types/node": "^22.9.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

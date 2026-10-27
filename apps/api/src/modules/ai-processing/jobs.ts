@@ -19,15 +19,17 @@ export const retryDelayMs = (attempts: number) => RETRY_BASE_MS * 2 ** (attempts
 /**
  * Queues an embed job when the note's searchable content changed (or it was never processed).
  * Returns the fields written to the note, or null when nothing changed.
+ * `keepUpdatedAt` is for changes the user didn't make themselves (a link renamed for them).
  */
-export async function queueIfChanged(note: QueueableNote, force = false) {
+export async function queueIfChanged(note: QueueableNote, force = false, keepUpdatedAt = false) {
+  const timestamps = !keepUpdatedAt;
   const hash = contentHash(note);
   if (!force && note.contentHash === hash && note.processing) return null;
 
   if (!hasSearchableText(note)) {
     const set = { contentHash: hash, processing: { status: 'skipped', updatedAt: new Date(), error: null } };
     await Promise.all([
-      Note.updateOne({ _id: note._id }, { $set: set }),
+      Note.updateOne({ _id: note._id }, { $set: set }, { timestamps }),
       ProcessingJob.deleteOne({ noteId: note._id }),
       Chunk.deleteMany({ noteId: note._id }),
       NoteVector.deleteOne({ noteId: note._id }),
@@ -36,7 +38,7 @@ export async function queueIfChanged(note: QueueableNote, force = false) {
   }
 
   const set = { contentHash: hash, processing: { status: 'pending', updatedAt: new Date(), error: null } };
-  await Note.updateOne({ _id: note._id }, { $set: set });
+  await Note.updateOne({ _id: note._id }, { $set: set }, { timestamps });
   // Upsert resets a running or failed job; the worker notices the new hash and discards its stale result.
   await ProcessingJob.updateOne(
     { noteId: note._id, kind: 'embed' },

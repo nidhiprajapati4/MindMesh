@@ -5,6 +5,7 @@ import { env } from './config/env';
 import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errors';
 import { askRouter, conversationsRouter } from './modules/ask/ask.routes';
+import connectionsRouter from './modules/connections/connections.routes';
 import foldersRouter from './modules/folders/folders.routes';
 import notesRouter from './modules/notes/notes.routes';
 import organizeRouter from './modules/organize/organize.routes';
@@ -29,5 +30,6 @@ app.use('/api/search', requireAuth, searchRouter);
 app.use('/api/ask', requireAuth, askRouter);
 app.use('/api/conversations', requireAuth, conversationsRouter);
 app.use('/api/organize', requireAuth, organizeRouter);
+app.use('/api/connections', requireAuth, connectionsRouter);
 
 app.use(errorHandler);

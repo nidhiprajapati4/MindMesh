@@ -18,6 +18,8 @@ const noteVectorSchema = new Schema(
 
 noteVectorSchema.index({ noteId: 1 }, { unique: true });
 noteVectorSchema.index({ userId: 1, model: 1 });
+// Phase 6: the graph cache checks the user's latest vector update.
+noteVectorSchema.index({ userId: 1, updatedAt: -1 });
 
 export type INoteVector = InferSchemaType<typeof noteVectorSchema>;
 export const NoteVector = model('NoteVector', noteVectorSchema, 'noteVectors');

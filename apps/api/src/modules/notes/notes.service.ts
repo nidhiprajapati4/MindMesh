@@ -2,6 +2,7 @@ import type { FilterQuery, SortOrder } from 'mongoose';
 import { HttpError } from '../../middleware/errors';
 import { Note, type INote } from '../../models/Note';
 import { dropEmbeddings, queueIfChanged } from '../ai-processing/jobs';
+import { backlinkCounts, syncLinks, unlinkDeleted } from '../connections/links';
 import { assertFolderOwned } from '../folders/folders.service';
 import { extractFile } from './file-extract';
 import { fetchUrlMetadata } from './url-metadata';
@@ -81,7 +82,9 @@ export async function listNotes(userId: string, query: ListQuery) {
     result = await runList(filter, query, false);
   }
 
-  return { ...result, page: query.page, limit: query.limit, matchMode };
+  const counts = await backlinkCounts(userId, result.items.map((n) => n._id));
+  const items = result.items.map((n) => ({ ...n, backlinkCount: counts.get(String(n._id)) ?? 0 }));
+  return { ...result, items, page: query.page, limit: query.limit, matchMode };
 }
 
 export async function listTags(userId: string) {
@@ -91,8 +94,9 @@ export async function listTags(userId: string) {
 
 export async function createNote(userId: string, input: CreateNoteInput) {
   if (input.folderId) await assertFolderOwned(userId, input.folderId);
-  const note = await Note.create({ ...input, userId });
-  return withProcessing(note.toObject());
+  const note = (await Note.create({ ...input, userId })).toObject();
+  const outLinks = await syncLinks(note);
+  return withProcessing({ ...note, outLinks });
 }
 
 export async function getNote(userId: string, id: string) {
@@ -113,9 +117,12 @@ export async function updateNote(userId: string, id: string, input: UpdateNoteIn
     else $unset[`metadata.${key}`] = '';
   }
   const update = Object.keys($unset).length ? { $set, $unset } : { $set };
-  const note = await Note.findOneAndUpdate({ _id: id, userId, deletedAt: null }, update, { new: true, runValidators: true }).lean();
+  const before = await Note.findOne({ _id: id, userId, deletedAt: null }, { titleKey: 1 }).lean();
+  const note = before && (await Note.findOneAndUpdate({ _id: id, userId, deletedAt: null }, update, { new: true, runValidators: true }).lean());
   if (!note) throw notFound();
-  return withProcessing(note);
+  const linksMayChange = input.title !== undefined || input.content !== undefined || input.type !== undefined;
+  const outLinks = linksMayChange ? await syncLinks(note, before.titleKey) : note.outLinks;
+  return withProcessing({ ...note, outLinks });
 }
 
 export async function trashNote(userId: string, id: string) {
@@ -133,21 +140,25 @@ export async function trashNote(userId: string, id: string) {
 export async function restoreNote(userId: string, id: string) {
   const note = await Note.findOneAndUpdate({ _id: id, userId, deletedAt: { $ne: null } }, { $set: { deletedAt: null } }, { new: true }).lean();
   if (!note) throw notFound();
+  const outLinks = await syncLinks(note);
   const set = await queueIfChanged(note, true);
-  return { ...note, ...set };
+  return { ...note, outLinks, ...set };
 }
 
 /** Permanent delete is only allowed for items already in the trash. */
 export async function destroyNote(userId: string, id: string) {
-  const result = await Note.deleteOne({ _id: id, userId, deletedAt: { $ne: null } });
-  if (!result.deletedCount) throw notFound();
+  const note = await Note.findOneAndDelete({ _id: id, userId, deletedAt: { $ne: null } }, { projection: { titleKey: 1 } }).lean();
+  if (!note) throw notFound();
   await dropEmbeddings([id]);
+  await unlinkDeleted(userId, [note]);
 }
 
 export async function emptyTrash(userId: string) {
-  const ids = await Note.find({ userId, deletedAt: { $ne: null } }).distinct('_id');
+  const trashed = await Note.find({ userId, deletedAt: { $ne: null } }, { titleKey: 1 }).lean();
+  const ids = trashed.map((n) => n._id);
   const result = await Note.deleteMany({ _id: { $in: ids }, userId });
   await dropEmbeddings(ids);
+  await unlinkDeleted(userId, trashed);
   return { deleted: result.deletedCount };
 }
 
@@ -174,6 +185,7 @@ export async function uploadDocument(
       truncated: extracted.truncated || undefined,
     },
   });
+  await syncLinks(note);
   return withProcessing(note.toObject());
 }
 
@@ -198,5 +210,6 @@ export async function captureUrl(userId: string, input: { url: string; folderId:
       author: meta?.author,
     },
   });
+  await syncLinks(note);
   return withProcessing(note.toObject());
 }

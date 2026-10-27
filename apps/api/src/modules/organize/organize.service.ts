@@ -5,9 +5,8 @@ import { Note } from '../../models/Note';
 import { NoteVector } from '../../models/NoteVector';
 import { embed, embeddingProvider } from '../../platform/ai-client';
 import { chunkText } from '../ai-processing/chunk';
-import { listQuerySchema } from '../notes/notes.schema';
-import { baseFilter } from '../notes/notes.service';
-import { cosine, meanVector } from '../search/rank';
+import { activeFilter, brief, type Brief } from '../notes/note-brief';
+import { meanVector, similarPairs } from '../search/rank';
 import { nearestNotes, noteVectorOf } from '../search/vector-store';
 
 /**
@@ -42,18 +41,6 @@ const MIN_DRAFT_CHARS = 20;
 /** Long drafts are embedded like the worker does (chunks, then averaged), capped to stay quick. */
 const MAX_DRAFT_CHUNKS = 8;
 
-const activeFilter = (userId: string) => baseFilter(userId, listQuerySchema.parse({ view: 'active' }));
-
-const preview = (n: { content?: string | null; metadata?: { description?: string | null } | null }) =>
-  (n.content || n.metadata?.description || '').replace(/\s+/g, ' ').trim().slice(0, 140);
-
-type Brief = { _id: string; title: string; type: string; preview: string };
-const brief = (n: { _id: unknown; title: string; type: string; content?: string | null; metadata?: { description?: string | null } | null }): Brief => ({
-  _id: String(n._id),
-  title: n.title || 'Untitled',
-  type: n.type,
-  preview: preview(n),
-});
 
 // --- Related notes --------------------------------------------------------------------------
 
@@ -187,16 +174,8 @@ export async function duplicatePairs(userId: string) {
   notes.forEach((n, i) => n.sourceUrl && byLink.set(normaliseUrl(n.sourceUrl), [...(byLink.get(normaliseUrl(n.sourceUrl)) ?? []), i]));
   for (const group of byLink.values()) for (let x = 0; x < group.length; x++) for (let y = x + 1; y < group.length; y++) add(group[x], group[y], 1, 'same-link');
 
-  for (let i = 0; i < notes.length; i++) {
-    const vi = vec.get(String(notes[i]._id));
-    if (!vi) continue;
-    for (let j = i + 1; j < notes.length; j++) {
-      const vj = vec.get(String(notes[j]._id));
-      if (!vj) continue;
-      const score = cosine(vi, vj);
-      if (score >= organizeSettings.duplicateMin) add(i, j, score, 'similar');
-    }
-  }
+  const pairsBySimilarity = similarPairs(notes.map((n) => vec.get(String(n._id))), organizeSettings.duplicateMin);
+  for (const { i, j, score } of pairsBySimilarity) add(i, j, score, 'similar');
   pairs.sort((x, y) => y.score - x.score);
   return { pairs: pairs.slice(0, MAX_DUPLICATE_PAIRS), scanned: notes.length, capped: notes.length >= MAX_DUPLICATE_SCAN };
 }

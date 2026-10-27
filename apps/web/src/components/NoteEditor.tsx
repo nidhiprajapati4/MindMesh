@@ -2,15 +2,21 @@
 
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import {
+  LINK_RE,
   MAX_UPLOAD_BYTES,
   NOTE_TYPES,
   UPLOAD_ACCEPT,
+  api,
   formatBytes,
+  linkKey,
   type EditableMetadata,
   type Folder,
+  type Note,
   type NoteMetadata,
   type NoteType,
 } from '@/lib/api';
+import { LinkTextarea } from './LinkAutocomplete';
+import { NoteLinks } from './NoteLinks';
 import { RelatedNotes } from './RelatedNotes';
 import { SuggestionBar, useSuggestions } from './Suggestions';
 
@@ -114,6 +120,26 @@ export function NoteEditor({ draft, folders, saving, error, onChange, onSave, on
   const addTag = (tag: string) => {
     const current = draft.tags.split(',').map((t) => t.trim()).filter(Boolean);
     if (!current.map((t) => t.toLowerCase()).includes(tag)) set({ tags: [...current, tag].join(', ') });
+  };
+
+  const [linkError, setLinkError] = useState('');
+  const linking = draft.type !== 'snippet';
+  const linkedKeys = new Set([...draft.content.matchAll(LINK_RE)].map((m) => linkKey(m[1])));
+  const addLink = (title: string) => {
+    if (linkedKeys.has(linkKey(title))) return;
+    const body = draft.content.trimEnd();
+    set({ content: `${body}${body ? '\n\n' : ''}[[${title}]]` });
+  };
+  // "Create it" for a link to a note that doesn't exist yet: make that note and open it.
+  const createLinked = async (title: string) => {
+    if (saving || !onOpenNote) return;
+    if (dirty && !confirm('Discard your changes to this note and create the linked one?')) return;
+    try {
+      const n = await api<Note>('/api/notes', { method: 'POST', body: JSON.stringify({ title, folderId: draft.folderId || null }) });
+      onOpenNote(n._id);
+    } catch (e) {
+      setLinkError(e instanceof Error ? e.message : 'Could not create the note');
+    }
   };
 
   const pickFile = (f: File | undefined) => {
@@ -245,14 +271,16 @@ export function NoteEditor({ draft, folders, saving, error, onChange, onSave, on
                 <textarea className="field min-h-16 text-sm" placeholder="Description" maxLength={1000} value={draft.metadata.description} onChange={(e) => setMeta({ description: e.target.value })} aria-label="Description" />
               )}
 
-              <textarea
+              <LinkTextarea
                 className={`field min-h-56 leading-relaxed ${draft.type === 'snippet' ? 'font-mono text-sm' : 'font-serif'}`}
-                placeholder={draft.type === 'snippet' ? 'Paste code…' : draft.type === 'url' ? 'Why is this link worth keeping?' : 'Write something…'}
+                placeholder={draft.type === 'snippet' ? 'Paste code…' : draft.type === 'url' ? 'Why is this link worth keeping?' : 'Write something… Type [[ to link another note.'}
                 maxLength={50000}
                 spellCheck={draft.type !== 'snippet'}
                 value={draft.content}
-                onChange={(e) => set({ content: e.target.value })}
+                onChange={(content) => set({ content })}
                 aria-label="Content"
+                linking={linking}
+                excludeId={draft.id}
               />
             </>
           )}
@@ -261,8 +289,14 @@ export function NoteEditor({ draft, folders, saving, error, onChange, onSave, on
           {mode === 'write' && (
             <SuggestionBar data={suggestions} onAddTag={addTag} onSetFolder={(folderId) => set({ folderId })} onOpenNote={openOther} />
           )}
-          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-          {!isNew && mode === 'write' && onOpenNote && <RelatedNotes noteId={draft.id!} onOpenNote={openOther} />}
+          {(error || linkError) && <p role="alert" className="text-sm text-red-700">{error || linkError}</p>}
+          {!isNew && mode === 'write' && onOpenNote && (
+            <>
+              <NoteLinks noteId={draft.id!} onOpenNote={openOther} onCreateNote={(title) => void createLinked(title)} />
+              <RelatedNotes noteId={draft.id!} onOpenNote={openOther}
+                onLink={linking ? addLink : undefined} isLinked={(title) => linkedKeys.has(linkKey(title))} />
+            </>
+          )}
         </div>
 
         <footer className="flex items-center gap-2 border-t border-line px-5 py-3">

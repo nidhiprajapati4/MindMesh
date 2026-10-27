@@ -495,6 +495,7 @@ export default function NotesPage() {
               onTrash={() => trash(n)}
               onRestore={() => restore(n)}
               onDestroy={() => destroy(n)}
+              onOpenNote={(id) => void openNoteById(id)}
             />
           ))}
         </ul>

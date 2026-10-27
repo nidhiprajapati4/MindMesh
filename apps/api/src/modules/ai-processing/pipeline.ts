@@ -37,12 +37,13 @@ export async function runJob(job: Job): Promise<JobOutcome> {
   }
   if (note.contentHash !== job.contentHash) {
     // Normally an edit already re-queued this job with the new hash; make sure it is queued either way.
-    await queueIfChanged(note, true);
+    await queueIfChanged(note, true, true);
     return 'stale';
   }
 
+  // The worker's own writes never change the note's "updated" time: only the user's edits do.
   const current = { _id: note._id, contentHash: job.contentHash };
-  await Note.updateOne(current, { $set: { processing: { status: 'processing', updatedAt: new Date(), error: null } } });
+  await Note.updateOne(current, { $set: { processing: { status: 'processing', updatedAt: new Date(), error: null } } }, { timestamps: false });
 
   try {
     const provider = embeddingProvider();
@@ -78,7 +79,7 @@ export async function runJob(job: Job): Promise<JobOutcome> {
     } else {
       await NoteVector.deleteOne({ noteId: note._id });
     }
-    await Note.updateOne(current, { $set: { keyPoints, processing: { status: pieces.length ? 'ready' : 'skipped', updatedAt: new Date(), error: null } } });
+    await Note.updateOne(current, { $set: { keyPoints, processing: { status: pieces.length ? 'ready' : 'skipped', updatedAt: new Date(), error: null } } }, { timestamps: false });
     await settleJob(job, { status: 'ready', lastError: null, lockedAt: null });
     return 'ready';
   } catch (e) {
@@ -86,11 +87,11 @@ export async function runJob(job: Job): Promise<JobOutcome> {
     const quota = (e as { code?: string })?.code === QUOTA_EXCEEDED;
     if (!quota && job.attempts < MAX_ATTEMPTS) {
       await settleJob(job, { status: 'pending', lastError, lockedAt: null, runAfter: new Date(Date.now() + retryDelayMs(job.attempts)) });
-      await Note.updateOne(current, { $set: { processing: { status: 'pending', updatedAt: new Date(), error: null } } });
+      await Note.updateOne(current, { $set: { processing: { status: 'pending', updatedAt: new Date(), error: null } } }, { timestamps: false });
       return 'retry';
     }
     await settleJob(job, { status: 'failed', lastError, lockedAt: null });
-    await Note.updateOne(current, { $set: { processing: { status: 'failed', updatedAt: new Date(), error: userMessage(e) } } });
+    await Note.updateOne(current, { $set: { processing: { status: 'failed', updatedAt: new Date(), error: userMessage(e) } } }, { timestamps: false });
     return 'failed';
   }
 }

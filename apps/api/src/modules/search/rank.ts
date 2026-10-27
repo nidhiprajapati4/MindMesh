@@ -10,6 +10,25 @@ export function cosine(a: number[], b: number[]) {
   return na && nb ? dot / Math.sqrt(na * nb) : 0;
 }
 
+/**
+ * Every pair of vectors at least `min` similar, as indexes into `vectors` (null entries skipped).
+ * Compares all pairs, so keep the list to a few thousand.
+ */
+export function similarPairs(vectors: (number[] | null | undefined)[], min: number) {
+  const pairs: { i: number; j: number; score: number }[] = [];
+  for (let i = 0; i < vectors.length; i++) {
+    const vi = vectors[i];
+    if (!vi) continue;
+    for (let j = i + 1; j < vectors.length; j++) {
+      const vj = vectors[j];
+      if (!vj) continue;
+      const score = cosine(vi, vj);
+      if (score >= min) pairs.push({ i, j, score });
+    }
+  }
+  return pairs;
+}
+
 /** The unit-length average of several vectors (e.g. a note's chunk embeddings). */
 export function meanVector(vectors: number[][]): number[] {
   const sum = new Array<number>(vectors[0]?.length ?? 0).fill(0);
@@ -39,7 +58,8 @@ const STOPWORDS = new Set(
   'the and for with from into onto that this these those what when where which who whom whose why how does did done doing are was were been being have has had having can could should would will shall may might must not but nor yet our ours your yours their theirs them they its his her him she you about after again all also any because before both each few more most other some such than then there too very just only own same out off over under keep keeps get gets got make makes my me i a an to of in on at by is it do be as or if so no up'.split(' ')
 );
 
-const terms = (text: string) =>
+/** The distinct content words of a text (lowercase, 3+ letters, no stopwords). */
+export const terms = (text: string) =>
   [...new Set((text.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter((w) => w.length >= 3 && !STOPWORDS.has(w)))];
 
 /** Crude stem (retries → retri, timing → tim) so plurals and tenses still match by prefix. */

@@ -7,14 +7,15 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/modules/notes/notes.schema.test.ts src/modules/notes/url-metadata.test.ts src/modules/ai-processing/ai-processing.test.ts src/platform/generation/generation.test.ts src/test/api.test.ts src/test/phase3.test.ts src/test/phase4.test.ts src/test/phase5.test.ts",
+    "test": "tsx --test src/modules/notes/notes.schema.test.ts src/modules/notes/url-metadata.test.ts src/modules/ai-processing/ai-processing.test.ts src/platform/generation/generation.test.ts src/test/api.test.ts src/test/phase3.test.ts src/test/phase4.test.ts src/test/phase5.test.ts src/test/phase6.test.ts",
     "worker": "tsx src/worker/index.ts",
     "dev:worker": "tsx watch src/worker/index.ts",
     "spike:vector": "tsx scripts/vector-spike.ts",
     "reembed": "tsx scripts/reembed.ts",
     "eval:search": "tsx eval/search/run-eval.ts",
     "eval:ask": "tsx eval/ask/run-eval.ts",
-    "eval:organize": "tsx eval/organize/run-eval.ts"
+    "eval:organize": "tsx eval/organize/run-eval.ts",
+    "eval:connections": "tsx eval/connections/run-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

@@ -8,6 +8,7 @@ import { Usage } from '../models/Usage';
 import { backfill, backfillNoteVectors } from '../modules/ai-processing/jobs';
 import { NoteVector } from '../models/NoteVector';
 import { initVectorBackend } from '../modules/search/vector-store';
+import { backfillLinks } from '../modules/connections/links';
 import { env } from './env';
 
 export async function connectDb() {
@@ -33,5 +34,8 @@ async function migrate() {
   // Phase 5: notes embedded before note vectors existed get one from their stored chunks (no re-embedding).
   const built = await backfillNoteVectors();
   if (built) console.log(`Built note vectors for ${built} existing notes`);
+  // Phase 6: notes saved before [[links]] existed get their title key and links.
+  const { keyed, linked } = await backfillLinks();
+  if (keyed || linked) console.log(`Prepared ${keyed} existing notes for links (${linked} contain links)`);
   await initVectorBackend();
 }

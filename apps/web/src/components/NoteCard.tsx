@@ -1,6 +1,7 @@
 'use client';
 
-import { formatBytes, hostOf, isIndexing, safeHref, type MatchedBy, type Note } from '@/lib/api';
+import type { ReactNode } from 'react';
+import { LINK_RE, formatBytes, hostOf, isIndexing, linkKey, safeHref, type MatchedBy, type Note } from '@/lib/api';
 
 type Props = {
   note: Note;
@@ -13,7 +14,32 @@ type Props = {
   onRestore: () => void;
   onDestroy: () => void;
   onRetry: () => void;
+  /** Opens the note a [[link]] in the preview leads to. */
+  onOpenNote?: (id: string) => void;
 };
+
+/** Shows [[links]] in a preview as links to the notes they lead to (plain text in code). */
+function withLinks(text: string, note: Note, onOpenNote?: (id: string) => void): ReactNode {
+  if (note.type === 'snippet' || !text.includes('[[')) return text;
+  const target = new Map((note.outLinks ?? []).map((l) => [l.key, l.noteId]));
+  const parts: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(LINK_RE)) {
+    parts.push(text.slice(last, m.index));
+    const title = m[1].replace(/\s+/g, ' ').trim();
+    const id = target.get(linkKey(title));
+    parts.push(
+      id && onOpenNote ? (
+        <button key={m.index} type="button" className="text-accent underline decoration-dotted underline-offset-2" onClick={() => onOpenNote(id)}>{title}</button>
+      ) : (
+        <span key={m.index} className="underline decoration-dotted underline-offset-2" title="No note with this title yet">{title}</span>
+      )
+    );
+    last = m.index + m[0].length;
+  }
+  parts.push(text.slice(last));
+  return parts;
+}
 
 const TYPE_BADGE: Record<Note['type'], string> = { note: 'Note', snippet: 'Snippet', url: 'Link', idea: 'Idea', document: 'Doc' };
 const MATCH_LABEL: Record<MatchedBy, string> = { meaning: 'Matched by meaning', both: 'Matched by meaning and keywords', keyword: '' };
@@ -38,7 +64,7 @@ function ProcessingBadge({ note: n, onRetry }: { note: Note; onRetry: () => void
   return null;
 }
 
-export function NoteCard({ note: n, folderName, match, onOpen, onPatch, onTrash, onRestore, onDestroy, onRetry }: Props) {
+export function NoteCard({ note: n, folderName, match, onOpen, onPatch, onTrash, onRestore, onDestroy, onRetry, onOpenNote }: Props) {
   const trashed = !!n.deletedAt;
   const href = safeHref(n.sourceUrl);
   const preview = match?.snippet || n.content || n.metadata?.description || '';
@@ -51,6 +77,14 @@ export function NoteCard({ note: n, folderName, match, onOpen, onPatch, onTrash,
             <span className="rounded bg-paper px-1.5 py-0.5 font-medium uppercase tracking-wide">{TYPE_BADGE[n.type] ?? n.type}</span>
             {n.type === 'snippet' && n.metadata?.language && <span className="font-mono">{n.metadata.language}</span>}
             {folderName && <span>in {folderName}</span>}
+            {!trashed && !!n.backlinkCount && (
+              <span className="inline-flex items-center gap-1" title={`${n.backlinkCount} note${n.backlinkCount === 1 ? '' : 's'} link here`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+                </svg>
+                <span className="sr-only">Linked from</span>{n.backlinkCount}
+              </span>
+            )}
             {!trashed && <ProcessingBadge note={n} onRetry={onRetry} />}
           </div>
           {trashed ? (
@@ -88,7 +122,7 @@ export function NoteCard({ note: n, folderName, match, onOpen, onPatch, onTrash,
         </ul>
       ) : (
         preview && (
-          <p className={`mt-1 line-clamp-3 max-w-prose whitespace-pre-wrap text-muted ${n.type === 'snippet' ? 'font-mono text-sm' : 'font-serif'}`}>{preview}</p>
+          <p className={`mt-1 line-clamp-3 max-w-prose whitespace-pre-wrap text-muted ${n.type === 'snippet' ? 'font-mono text-sm' : 'font-serif'}`}>{trashed ? preview : withLinks(preview, n, onOpenNote)}</p>
         )
       )}
       {match && MATCH_LABEL[match.matchedBy] && <p className="mt-1 text-xs text-accent">{MATCH_LABEL[match.matchedBy]}</p>}

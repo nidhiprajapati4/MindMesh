@@ -38,6 +38,10 @@ export type Note = {
   updatedAt: string;
   /** 2–3 of the note's own sentences summarising it (long notes only, Phase 5). */
   keyPoints?: string[];
+  /** [[links]] in the text (Phase 6); noteId is null while no note has that title. */
+  outLinks?: { key: string; title: string; noteId: string | null }[];
+  /** How many notes link to this one (notes list only, Phase 6). */
+  backlinkCount?: number;
   /** Search indexing state (Phase 3). Missing on items not processed yet. */
   processing?: { status: 'pending' | 'processing' | 'ready' | 'failed' | 'skipped'; updatedAt: string; error: string | null } | null;
 };
@@ -129,4 +133,27 @@ export const hostOf =(url: string) => {
   } catch {
     return url;
   }
+};
+
+// --- Connections (Phase 6) ------------------------------------------------------------------
+
+export type NoteLinks = {
+  outgoing: { title: string; note: NoteBrief | null; state: 'ok' | 'missing' | 'trashed' }[];
+  backlinks: NoteBrief[];
+};
+
+/** How titles are compared for [[links]]; must match `titleKey` in the API. */
+export const linkKey = (title: string) => title.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** Splits text into plain parts and [[link]] parts (the same syntax the API parses). */
+export const LINK_RE = /\[\[([^[\]\n]{1,200})\]\]/g;
+
+export type GraphNode = { id: string; title: string; type: NoteType; folderId: string | null; tags: string[]; topicId: string | null; degree: number };
+export type GraphEdge = { source: string; target: string; kind: 'link' | 'similar'; similar: number | null };
+export type GraphData = { nodes: GraphNode[]; edges: GraphEdge[]; capped: boolean; total: number };
+export type TopicList = {
+  topics: { id: string; name: string; noteIds: string[]; size: number }[];
+  unconnected: { _id: string; title: string; type: NoteType }[];
+  unconnectedCount: number;
+  capped: boolean;
 };
