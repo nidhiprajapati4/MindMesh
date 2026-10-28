@@ -146,3 +146,25 @@ describe('Health and the worker', () => {
     assert.ok(Date.now() - started < 5000, 'an idle worker stops at once instead of finishing its wait');
   });
 });
+
+describe('Configuration', () => {
+  it('OPS-07 the Firebase private key is accepted however it was pasted, and a wrong value is explained without echoing it', async () => {
+    const { generateKeyPairSync, createPrivateKey } = await import('node:crypto');
+    const { normalisePrivateKey } = await import('../config/private-key.js');
+    const pem = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    const escaped = pem.trim().replace(/\n/g, '\n'); // as in the JSON file
+    const pasted = [
+      pem, // real line breaks
+      escaped, // \n escapes
+      `"${escaped}"`, // with the JSON quotes
+      escaped.replace(/\n/g, '\\n'), // doubled escapes
+      pem.replace(/\n/g, '\r\n'), // Windows line endings
+      `  ${escaped}  `, // stray spaces
+    ];
+    for (const value of pasted) assert.doesNotThrow(() => createPrivateKey(normalisePrivateKey(value)));
+
+    for (const wrong of ['firebase-adminsdk@demo.iam.gserviceaccount.com', '{"type":"service_account"}', 'secret-looking-value']) {
+      assert.throws(() => normalisePrivateKey(wrong), (e: Error) => /BEGIN PRIVATE KEY/.test(e.message) && !e.message.includes(wrong));
+    }
+  });
+});
