@@ -48,14 +48,17 @@ Firebase console → ⚙ Project settings → **Service accounts** → **Generat
 | `MONGODB_URI` | the Atlas connection string from step 1 |
 | `FIREBASE_PROJECT_ID` | your project id, e.g. `mindmesh-267a3` |
 | `FIREBASE_CLIENT_EMAIL` | `client_email` from step 2 |
-| `FIREBASE_PRIVATE_KEY` | `private_key` from step 2, pasted exactly as in the JSON (with its `\n`s) |
+| `FIREBASE_PRIVATE_KEY` | `private_key` from step 2 (with or without its quotes; `\n`s or real line breaks both work) |
 | `CLIENT_ORIGIN` | `https://<project-id>.web.app,https://<project-id>.firebaseapp.com` |
 
-4. **Apply.** The first build takes about 5 minutes (it installs dependencies, compiles the API and downloads the 23 MB embedding model).
-5. When it shows **Live**, open `https://<service>.onrender.com/ready`. Expect `{"ok":true,"db":"up","worker":"running",…}`. Copy the service URL: the web app needs it.
+4. **Apply.** The first build takes about 3 minutes. It installs dependencies and downloads the 23 MB embedding model. The API runs from its TypeScript source through `tsx`, because the free build machine is too small for the TypeScript compiler.
+   - Render applies `render.yaml` when the service is **created**. If you change its commands later, also update **Settings → Build Command / Start Command**; Render didn't sync them for us.
+   - Instead of a blueprint you can create a plain **New → Web Service** with the same settings: Build Command `unset NODE_OPTIONS && npm ci --include=dev && npm run prefetch-model -w apps/api`, Start Command `node --max-old-space-size=320 --import tsx apps/api/src/index.ts`, Health Check Path `/ready`, Instance type **Free**, and the environment variables listed in `render.yaml`.
+5. If the log says `MongooseServerSelectionError … IP that isn't whitelisted`, Atlas Network Access doesn't yet list `0.0.0.0/0` as **Active** (step 1). The Atlas **Connect** dialog only adds *your* IP.
+6. When it shows **Live**, open `https://<service>.onrender.com/ready`. Expect `{"ok":true,"db":"up","worker":"running",…}`. Copy the service URL: the web app needs it.
 
 ## 4. Firebase Hosting: the web app (you run the commands)
-1. Create `apps/web/.env` (see [`apps/web/.env.example`](../apps/web/.env.example)) with your Firebase web settings and the API address:
+1. `apps/web/.env` (see [`apps/web/.env.example`](../apps/web/.env.example)) holds your Firebase web settings. Put the deployed API's address in **`apps/web/.env.production`**, which only production builds read, so `npm run dev:web` keeps using your local API:
    ```
    NEXT_PUBLIC_API_URL=https://<service>.onrender.com
    ```

@@ -325,6 +325,22 @@ describe('Topics', () => {
     assert.deepEqual(unlinked.topics, [], 'without the links they are too far apart');
   });
 
+  it('TOPIC-05 one borderline note can join a topic but cannot bridge two topics into one', () => {
+    // Two tight groups along different axes, and one note 0.41 similar to a note in each.
+    const t = topics.computeTopics(lib([
+      { id: 'r1', title: 'Run one', v: [1, 0, 0, 0.05] },
+      { id: 'r2', title: 'Run two', v: [1, 0, 0, 0.1] },
+      { id: 'r3', title: 'Run three', v: [1, 0, 0, 0.15] },
+      { id: 'k1', title: 'Kube one', v: [0, 1, 0, 0.05] },
+      { id: 'k2', title: 'Kube two', v: [0, 1, 0, 0.1] },
+      { id: 'k3', title: 'Kube three', v: [0, 1, 0, 0.15] },
+      { id: 'bridge', title: 'Load testing', v: [0.42, 0.42, 0.8, 0] },
+    ]));
+    const groups = t.topics.map((x) => x.noteIds.sort().join(','));
+    assert.equal(t.topics.length, 2, JSON.stringify(groups));
+    assert.ok(!t.topics.some((x) => x.noteIds.includes('r1') && x.noteIds.includes('k1')), 'running and kubernetes merged');
+  });
+
   it('TOPIC-04 the topics endpoint and graph agree, follow edits and stay private', async () => {
     const G = client(api.base, emulatorToken('p6-graph-a'));
     const r = await G.get('/api/connections/topics');

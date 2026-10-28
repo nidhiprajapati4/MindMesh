@@ -1,58 +1,113 @@
-# MindMesh AI
+# MindMesh
 
-**Phase 6 (current): Connections & graph.** Link notes with `[[Note title]]` (with suggestions while you type and backlinks), see all your notes as a graph of links and similar meaning, and find topics and unconnected notes automatically. Free and local. See [phase6_Readme.md](phase6_Readme.md).
+**A personal knowledge base that understands what your notes mean.** Capture notes, code snippets, links and documents; find them by meaning, ask questions answered only from your own notes (with citations), and let it suggest tags, spot duplicates and show how your ideas connect.
 
-**Phase 5: Smart organization.** Related notes, tag and folder suggestions while you write, duplicate warnings and a "Possible duplicates" page, and key points for long notes, all from the free local search model, with nothing changed automatically. See [phase5_Readme.md](phase5_Readme.md).
+**Live demo: https://mindmesh-267a3.web.app**. Create an account with email or Google. It runs on free hosting, so after a quiet spell the first request takes up to a minute while the server wakes; the app tells you when that happens.
 
-**Phase 4: Ask your notes.** Answers only from your own notes, with citations, and free by default: "smart quotes" pick the best-matching sentences using the local search model, with no API key or cost. Claude can optionally write the answers instead (`ANTHROPIC_API_KEY`, paid). See [phase4_Readme.md](phase4_Readme.md).
+Everything is free to run: search, answers and suggestions use a small embedding model on the server itself, with no paid AI API. (Claude can optionally write answers if you add an API key.)
 
-**Phase 3:** ingestion, embeddings and search by meaning. It adds a background worker, so run `npm run dev:worker` alongside the API and web app.
+| Search by meaning | Answers from your notes | How your notes connect |
+|---|---|---|
+| ![Search results matched by meaning](docs/images/search.jpg) | ![An answer quoting three notes, with numbered citations](docs/images/ask.jpg) | ![Graph of notes coloured by topic](docs/images/graph.jpg) |
 
-Phase details: [Phase 1](phase1_Readme.md) · [Phase 2](phase2_Readme.md) · [Phase 3](phase3_Readme.md) · [Phase 4](phase4_Readme.md) ([test scenarios](phase4_Test_Scenarios.md)) · [Phase 5](phase5_Readme.md) ([test scenarios](phase5_Test_Scenarios.md)) · [Phase 6](phase6_Readme.md) ([test scenarios](phase6_Test_Scenarios.md)).
+## What it does
+- **Capture fast:** notes, snippets, ideas, links (title and description fetched safely) and uploaded PDF, Word, Markdown and text files. Folders, tags, pins, archive, trash with 30-day restore. Keyboard shortcuts (`N`, `/`, `Ctrl+Enter`).
+- **Search by meaning:** "what to do when a service keeps timing out" finds your *Retry helper* note. Keyword, meaning or both, with filters.
+- **Ask your notes:** questions are answered only from your notes, every sentence cited. Free "smart quotes" mode quotes the best-matching sentences; Claude can write the answer instead if you add a key.
+- **Organises with you:** related notes, tag and folder suggestions while you write, a warning before you save a near-duplicate, a "Possible duplicates" page, and key points for long documents.
+- **Connects ideas:** `[[Note title]]` links with suggestions and backlinks, a graph of links and similar meaning, and topics found automatically.
+- **Works on phones:** responsive layout with a slide-out menu.
 
-## Phase 2: Organize, search & capture (no AI)
+## How it is built
+```mermaid
+flowchart LR
+  B[Browser] -->|static site| H[Firebase Hosting]
+  B -->|sign-in| A[Firebase Auth]
+  B -->|REST + streaming, ID token| API[MindMesh API<br/>Express on Render]
+  API --> DB[(MongoDB Atlas<br/>notes, vectors, job queue)]
+  API --- W[Worker loop<br/>extract, chunk, embed]
+  W --> M[[Local embedding model<br/>all-MiniLM-L6-v2]]
+  W --> DB
+```
 
-Phase 1: auth (Firebase) + notes CRUD, tags, pin/archive, MongoDB text search.
-Phase 2 adds item types, folders, richer metadata, URL capture, keyword search with filters and sorting,
-and a recoverable trash.
-Still no OpenAI, embeddings, RAG or agents (those start in Phase 3).
-
-## What's in Phase 2
-| Requirement | Implemented |
+| Part | Technology |
 |---|---|
-| FR-05 item `type` | `note`, `snippet`, `url`, `idea`, `document` (existing notes are backfilled to `note` on startup) |
-| FR-07 folders & metadata | Per-user folders (unique names, rename, delete → items become unfiled); `metadata` = `language`, `siteName`, `description`, `author`; `sourceUrl` |
-| FR-08 keyword search & filters | Full-text search ranked by relevance, with partial-word fallback; filter by type, folder, tag, pinned, date range; sort by updated / created / title / relevance; "Load more" pagination |
-| FR-09 URL capture | `POST /api/notes/capture-url` fetches title/description/site name server-side with SSRF protection (private/loopback/metadata IPs blocked at connect time, redirects re-checked, 5 s timeout, 512 KB cap, ports 80/443 only). File upload is **not** included yet; it waits for the storage security design. |
-| Soft delete | Delete → Trash (undo toast); restore; delete forever; empty trash. A TTL index purges trashed items after 30 days. |
-| H1 fast capture | `N` new item, `/` search, `Ctrl/⌘+Enter` save, `Esc` cancel, paste-a-link capture bar |
+| Web app | Next.js 15 (static export), React 19, Tailwind, d3-force graph |
+| API | Node 20, Express 5, Mongoose 8, Zod validation, Firebase Admin |
+| Search | MongoDB Atlas Vector Search (in-memory fallback), keyword + meaning fused by reciprocal rank |
+| AI | `Xenova/all-MiniLM-L6-v2` embeddings on the server (free); extractive answers; optional Claude |
+| Background work | Job queue in MongoDB; worker runs separately or inside the API |
+| Quality | 181 automated API tests, GitHub Actions CI, four free evaluation suites with tuned thresholds |
+| Operations | Structured JSON logs with request ids, rate limits, health and readiness checks, CSP and security headers |
 
-Not done yet (Phase 1 NFRs still open): `{ error: { code, message, requestId } }` error shape, request-ID logging, rate limiting, CI.
+```
+apps/api     Express API, worker, evals (eval/), scripts (demo-seed, reembed, prefetch-model)
+apps/web     Next.js web app
+docs/        deploy and operations guides, evaluation reports, images
+render.yaml  Render blueprint for the API · firebase.json  Hosting config and security headers
+```
 
-## Setup
-1. Firebase console: create a project, enable Authentication (Email/Password + Google), register a Web app.
-2. Project settings > Service accounts > generate a private key (for the API).
-3. MongoDB Atlas: create a cluster and copy the connection string.
-4. Fill in `apps/api/.env` and `apps/web/.env` (see `apps/api/src/config/env.ts` for the API keys).
-5. `npm install` at the repo root.
-6. `npm run dev:api` (port 4000), `npm run dev:worker` (Phase 3 background processing) and `npm run dev:web` (port 3000).
-7. `npm test -w apps/api` runs the unit tests (schemas, SSRF guard, HTML metadata parsing).
+## Run it locally
+You need Node 20, a free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster and a free [Firebase](https://console.firebase.google.com) project with Authentication enabled.
 
-On startup the API backfills Phase 1 notes and runs `syncIndexes()`, which replaces the Phase 1 text index with the Phase 2 one.
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Copy the settings templates and fill them in: `apps/api/.env.example` → `apps/api/.env` (database and Firebase service account), `apps/web/.env.example` → `apps/web/.env` (Firebase web config). The comments in each file say where every value comes from.
+3. Start the API, the worker and the web app (three terminals):
+   ```bash
+   npm run dev:api
+   ```
+   ```bash
+   npm run dev:worker
+   ```
+   ```bash
+   npm run dev:web
+   ```
+4. Open http://localhost:3000 and create an account. To fill it with a demo library (about 65 notes):
+   ```bash
+   npm run demo:seed -w apps/api -- --email you@example.com
+   ```
 
-## API (all `/api/*` routes need `Authorization: Bearer <Firebase ID token>`)
-- `GET /health`
-- `GET /api/me`
+The first time, the API downloads the 23 MB embedding model.
 
-Notes
-- `GET /api/notes?q=&type=&folder=<id|none>&tag=&pinned=&view=active|archived|trash&from=&to=&sort=updated|created|title|relevance&page=1&limit=20`
-  → `{ items, total, page, limit, matchMode: 'all'|'text'|'partial' }`
-- `GET /api/notes/tags`
-- `POST /api/notes` · `GET|PATCH /api/notes/:id`
-- `POST /api/notes/capture-url` `{ url, folderId?, tags? }`
-- `DELETE /api/notes/:id` (move to trash) · `POST /api/notes/:id/restore`
-- `DELETE /api/notes/:id/permanent` (trashed items only) · `DELETE /api/notes/trash` (empty trash)
+## Test and check
+```bash
+npm run check
+```
+That runs the typecheck, the API tests (in-memory database and fake models, no accounts needed), and both production builds. CI runs the same on every push.
 
-Folders
-- `GET /api/folders` → `{ folders: [{ _id, name, color, noteCount }], unfiledCount }`
-- `POST /api/folders` `{ name, color? }` · `PATCH|DELETE /api/folders/:id`
+Evaluations (free, local model) measure search, answers, suggestions and connections against labelled data and write the reports in [docs/eval](docs/eval): `npm run eval:search`, `eval:ask`, `eval:organize`, `eval:connections` (each with `-w apps/api`).
+
+## Deploy and operate
+- [docs/deploy.md](docs/deploy.md): deploy for free on Firebase Hosting, Render and MongoDB Atlas (about 30 minutes, no card).
+- [docs/operations.md](docs/operations.md): health checks, logs and request ids, error codes, limits, key rotation, backups.
+
+## How it was built
+MindMesh was built in seven phases, each with its own design notes, results and test scenarios:
+
+| Phase | What it added |
+|---|---|
+| [1](phase1_Readme.md) | Sign-in, notes, tags, keyword search |
+| [2](phase2_Readme.md) | Item types, folders, link capture, filters, trash |
+| [3](phase3_Readme.md) | Background processing, embeddings, search by meaning |
+| [4](phase4_Readme.md) · [tests](phase4_Test_Scenarios.md) | Ask your notes, with citations, free by default |
+| [5](phase5_Readme.md) · [tests](phase5_Test_Scenarios.md) | Related notes, suggestions, duplicates, key points |
+| [6](phase6_Readme.md) · [tests](phase6_Test_Scenarios.md) | `[[Links]]`, graph view, topics |
+| [7](phase7_Readme.md) · [tests](phase7_Test_Scenarios.md) | Hardening, CI, free deployment, demo data |
+
+## API at a glance
+All `/api/*` routes need `Authorization: Bearer <Firebase ID token>` and only ever touch the signed-in user's data. Errors are `{ "error": { "code", "message", "requestId" } }`.
+
+| Area | Endpoints |
+|---|---|
+| Health | `GET /health` · `GET /ready` |
+| Notes | `GET/POST /api/notes` · `GET/PATCH/DELETE /api/notes/:id` · `POST /api/notes/:id/restore` · `DELETE /api/notes/:id/permanent` · `DELETE /api/notes/trash` · `GET /api/notes/tags` · `POST /api/notes/capture-url` · `POST /api/notes/upload` · `POST /api/notes/:id/reprocess` |
+| Folders | `GET/POST /api/folders` · `PATCH/DELETE /api/folders/:id` |
+| Search | `GET /api/search?q=&mode=keyword\|semantic\|hybrid` · `GET /api/search/usage` |
+| Ask | `POST /api/ask` (server-sent events) · `GET /api/ask/status` · `GET /api/conversations` · `GET/PATCH/DELETE /api/conversations/:id` · `POST /api/conversations/:id/turns/:n/feedback` |
+| Organize | `GET /api/organize/related/:id` · `POST /api/organize/suggest` · `GET /api/organize/duplicates` |
+| Connections | `GET /api/connections/links/:id` · `GET /api/connections/graph` · `GET /api/connections/topics` |
+
+Details for each are in the phase readmes.

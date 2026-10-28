@@ -12,6 +12,10 @@ export const topicSettings = {
   linkedMin: 0.3,
   /** …and their connection counts this much stronger. */
   linkBonus: 0.15,
+  /** Two groups that are already topics only merge through a connection at least this strong,
+   *  so one borderline note can't bridge two clear topics (in the demo library, "Load testing
+   *  with k6" at 0.40 joined the running and Kubernetes topics into one). */
+  mergeMin: 0.5,
   /** Topics stop growing at this size, so one loose chain can't swallow the library. */
   maxSize: 40,
   /** Smaller groups aren't called a topic. */
@@ -66,17 +70,19 @@ export function topicName(members: LibNote[], all: LibNote[]): string {
 }
 
 /**
- * Groups notes into topics: connections are added strongest first (see topicEdges), joining two groups only while
- * the result stays within the size limit (single-linkage clustering with a size cap). Groups
- * smaller than `minSize` aren't topics. Also lists notes with no link and nothing similar.
+ * Groups notes into topics: connections are added strongest first (see topicEdges), joining two
+ * groups only while the result stays within the size limit, and joining two existing topics only
+ * through a strong connection (single-linkage clustering with a size cap and a merge bar).
+ * Groups smaller than `minSize` aren't topics. Also lists notes with no link and nothing similar.
  */
 export function computeTopics(lib: Library, s = topicSettings): Topics {
   const parent = lib.notes.map((_, i) => i);
   const size = lib.notes.map(() => 1);
   const find = (x: number): number => (parent[x] === x ? x : (parent[x] = find(parent[x])));
-  for (const { i, j } of topicEdges(lib, s)) {
+  for (const { i, j, w } of topicEdges(lib, s)) {
     const [a, b] = [find(i), find(j)];
     if (a === b || size[a] + size[b] > s.maxSize) continue;
+    if (size[a] >= s.minSize && size[b] >= s.minSize && w < s.mergeMin) continue;
     const [big, small] = size[a] >= size[b] ? [a, b] : [b, a];
     parent[small] = big;
     size[big] += size[small];

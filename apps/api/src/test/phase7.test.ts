@@ -43,6 +43,21 @@ describe('Errors', () => {
     const invalid = (await (await raw('/api/notes', { method: 'POST', headers: { Authorization: `Bearer ${emulatorToken('p7-user-a')}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'poem' }) })).json()) as ErrorBody;
     assert.ok(invalid.error.details, 'validation errors say which fields are wrong');
   });
+
+  it('OPS-08 a database failure during sign-in is a server error, not "session expired"', async () => {
+    const { User } = await import('../models/User.js');
+    const original = User.findOneAndUpdate;
+    User.findOneAndUpdate = (() => Promise.reject(new Error('database unreachable'))) as unknown as typeof User.findOneAndUpdate;
+    try {
+      const r = await A.get('/api/folders');
+      assert.equal(r.status, 500);
+      assert.equal(r.body.error.code, 'INTERNAL');
+      assert.ok(!JSON.stringify(r.body).includes('database unreachable'), 'internal details leaked');
+    } finally {
+      User.findOneAndUpdate = original;
+    }
+    assert.equal((await A.get('/api/folders')).status, 200);
+  });
 });
 
 describe('Request ids', () => {

@@ -172,7 +172,7 @@ async function main() {
   const chosenTopic = topics.topicSettings.topicMin;
   const tp = topicStats(chosenTopic);
   lines.push('', '## Topics', '');
-  lines.push(`Notes at least **${chosenTopic}** similar (or linked) are grouped, strongest connections first, up to ${topics.topicSettings.maxSize} notes per topic; groups under ${topics.topicSettings.minSize} notes aren't topics.`, '');
+  lines.push(`Notes at least **${chosenTopic}** similar (or linked) are grouped, strongest connections first, up to ${topics.topicSettings.maxSize} notes per topic; two topics only merge through a connection of at least ${topics.topicSettings.mergeMin}; groups under ${topics.topicSettings.minSize} notes aren't topics.`, '');
   lines.push('| Metric | Result |', '|---|---|');
   lines.push(`| Known subjects recovered (average best-topic F1) | ${pct(tp.f1)} |`);
   lines.push(`| Purity: notes in their topic's main broad area | ${pct(tp.purity)} |`);
