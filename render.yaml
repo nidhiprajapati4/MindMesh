@@ -9,12 +9,13 @@ services:
     # Pick the region closest to your MongoDB Atlas cluster (oregon, ohio, virginia, frankfurt, singapore).
     region: singapore
     branch: main
-    # Dev dependencies (TypeScript, tsx) are needed to build; the model is downloaded now so the
-    # server doesn't fetch it again each time it wakes up. NODE_OPTIONS is cleared for the build:
-    # the TypeScript compiler needs about 430 MB, more than the server's memory cap below.
-    buildCommand: unset NODE_OPTIONS && npm ci --include=dev && npm run build -w apps/api && npm run prefetch-model -w apps/api
-    # The free plan has 512 MB; the API with the model in memory peaks around 260 MB.
-    startCommand: node --max-old-space-size=320 apps/api/dist/index.js
+    # No TypeScript compile here: tsc needs ~430 MB, more than Render's free build machine gives
+    # it, so the server runs the TypeScript source through tsx (types are checked in CI instead).
+    # Dev dependencies include tsx. The model is downloaded now so the server doesn't fetch it
+    # again each time it wakes up.
+    buildCommand: unset NODE_OPTIONS && npm ci --include=dev && npm run prefetch-model -w apps/api
+    # The free plan has 512 MB; the API with the model in memory peaks around 240 MB.
+    startCommand: node --max-old-space-size=320 --import tsx apps/api/src/index.ts
     healthCheckPath: /ready
     autoDeploy: true
     envVars:

@@ -98,7 +98,7 @@ Keeping it running, logs, error codes and key rotation: [operations.md](operatio
 | Symptom | Likely cause |
 |---|---|
 | Render build fails at `npm ci` | Node version: the blueprint sets `NODE_VERSION=20` |
-| Render build: `tsc` "Aborted (core dumped)", exit 134 | Out of memory: a `NODE_OPTIONS=--max-old-space-size=…` environment variable also caps the build. Delete it in Render → Environment; the start command sets the server's cap itself |
+| Render build: `tsc` "heap out of memory" / "Aborted (core dumped)", exit 134 | The free build machine can't fit the TypeScript compiler. The blueprint doesn't compile on Render: check Settings → Build Command and Start Command match `render.yaml` (they run the source through `tsx`), and delete any `NODE_OPTIONS` variable in Environment |
 | `/ready` says `"db":"down"` | `MONGODB_URI` wrong, or Atlas Network Access doesn't allow `0.0.0.0/0` |
 | API exits at start with "FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY are required" | A service-account value is missing in Render → Environment |
 | Sign-in works but every request says "Your session has expired" | `FIREBASE_PROJECT_ID` doesn't match the web app's project |
