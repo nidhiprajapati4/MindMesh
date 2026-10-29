@@ -43,6 +43,8 @@ app.get('/ready', async (_req, res) => {
     ...(lifecycle.shuttingDown ? { shuttingDown: true } : {}),
     worker: env.RUN_WORKER === 'inline' ? (workerRunning() ? 'running' : 'stopped') : 'separate process',
     embeddingModel: embeddingProvider().name === 'local' ? localModelState() : embeddingProvider().name,
+    // The commit this server runs (set by Render), so a deploy can confirm its code is live.
+    ...(process.env.RENDER_GIT_COMMIT ? { commit: process.env.RENDER_GIT_COMMIT } : {}),
   });
 });
 

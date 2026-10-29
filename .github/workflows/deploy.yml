@@ -1,0 +1,126 @@
+name: Deploy
+
+# Runs only when a pull request is merged into main: tests again, then the API (Render), then the
+# web app (Firebase Hosting). A direct push to main doesn't deploy, and neither does a pull request
+# closed without merging. One-time setup (secrets, variables, Render settings): docs/deploy.md §6.
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One deploy at a time, in merge order; a running deploy is never cut off halfway.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event.pull_request.merged == true
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+  api:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production-api
+      url: ${{ steps.url.outputs.api }}
+    env:
+      SHA: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          # The whole history, to tell whether the commit Render runs includes this merge.
+          fetch-depth: 0
+
+      # The live API address is kept in one place, the web app's production settings.
+      - id: url
+        run: echo "api=$(grep '^NEXT_PUBLIC_API_URL=' apps/web/.env.production | cut -d= -f2- | tr -d '\r')" >> "$GITHUB_OUTPUT"
+
+      - name: Start the Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::The RENDER_DEPLOY_HOOK_URL secret is missing (docs/deploy.md §6)."
+            exit 1
+          fi
+          curl --fail --silent --show-error -X POST "$HOOK" > /dev/null
+          echo "Render is building $SHA."
+
+      # Render builds for 3–5 minutes, then swaps in the new server. /ready reports the commit it
+      # runs; wait until that commit includes this merge (it can be a later one, if two PRs were
+      # merged close together) and the database answers.
+      - name: Wait until the new API is live
+        env:
+          API: ${{ steps.url.outputs.api }}
+        run: |
+          deadline=$((SECONDS + 25 * 60))
+          while [ $SECONDS -lt $deadline ]; do
+            body=$(curl --silent --max-time 90 "$API/ready" || true)
+            commit=$(echo "$body" | jq -r '.commit // empty' 2>/dev/null || true)
+            ok=$(echo "$body" | jq -r '.ok // false' 2>/dev/null || echo false)
+            if [ -n "$commit" ] && ! git cat-file -e "$commit^{commit}" 2>/dev/null; then
+              git fetch --quiet origin main || true
+            fi
+            if [ "$ok" = true ] && [ -n "$commit" ] && git merge-base --is-ancestor "$SHA" "$commit" 2>/dev/null; then
+              echo "Live: $body"
+              exit 0
+            fi
+            echo "Waiting (running commit: ${commit:-unknown}, ready: $ok)"
+            sleep 20
+          done
+          echo "::error::The API did not go live with $SHA within 25 minutes. Check the deploy in the Render dashboard."
+          exit 1
+
+  web:
+    needs: api
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-web
+      url: https://mindmesh-267a3.web.app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # The API address comes from apps/web/.env.production; the Firebase web settings (public,
+      # built into the site) from the repository's Actions variables.
+      - name: Build the static site
+        run: npm run build:web
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
+
+      - name: Deploy to Firebase Hosting
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SERVICE_ACCOUNT" ]; then
+            echo "::error::The FIREBASE_SERVICE_ACCOUNT secret is missing (docs/deploy.md §6)."
+            exit 1
+          fi
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          printf '%s' "$SERVICE_ACCOUNT" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          npx -y firebase-tools@15.33.0 deploy --only hosting --non-interactive \
+            --message "PR #${{ github.event.pull_request.number }} ($(git rev-parse --short HEAD))"
+          rm -f "$GOOGLE_APPLICATION_CREDENTIALS"
+
+      - name: Check the site answers
+        run: curl --fail --silent --show-error --output /dev/null https://mindmesh-267a3.web.app
