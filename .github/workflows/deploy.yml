@@ -33,7 +33,7 @@ jobs:
     env:
       SHA: ${{ github.event.pull_request.merge_commit_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
           # The whole history, to tell whether the commit Render runs includes this merge.
@@ -87,7 +87,7 @@ jobs:
       name: production-web
       url: https://mindmesh-267a3.web.app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
 
