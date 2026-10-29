@@ -91,9 +91,21 @@ Optionally fill a demo account (run locally with the production `MONGODB_URI` in
 npm run demo:seed -w apps/api -- --email you@example.com
 ```
 
+## 6. Automatic deploys (you, once)
+[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) deploys both parts **only when a pull request is merged into `main`**: it runs the tests on the merge commit, then deploys the API to Render and waits until `/ready` reports that commit, then builds and deploys the web app to Firebase Hosting. A direct push to `main`, or a PR closed without merging, deploys nothing. The API goes first, so the new web app never talks to an older API.
+
+One-time setup:
+1. **Render deploy hook.** Render → your service → **Settings → Deploy Hook**: copy the URL. GitHub → repository → **Settings → Secrets and variables → Actions → New repository secret**: name `RENDER_DEPLOY_HOOK_URL`. Then in Render **Settings → Build & Deploy → Auto-Deploy**: set **No**, so only the pipeline deploys (`render.yaml` says the same for new blueprints).
+2. **Firebase deploy key.** Firebase console → ⚙ Project settings → Service accounts → Generate new private key (a *new* key; keep the one from step 2 for Render). In Google Cloud console → IAM, give that service account the **Firebase Hosting Admin** role. Save the whole JSON file's contents as the repository secret `FIREBASE_SERVICE_ACCOUNT`, then delete the file.
+3. **Firebase web settings.** Under the same *Actions* page → **Variables** tab, add `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID` and `NEXT_PUBLIC_FIREBASE_APP_ID` (the same public values as in `apps/web/.env`). The API address comes from `apps/web/.env.production`.
+4. *(Optional)* **Settings → Environments → production-api / production-web**: add yourself as a required reviewer for a manual approval before each deploy.
+5. *(Recommended)* **Settings → Branches → Add rule** for `main`: require a pull request and the **check** status before merging, so only tested code can reach the pipeline.
+
+A failed deploy shows red in the **Actions** tab; nothing later runs. If only the web step fails, re-run that job. Because Render's free plan has no zero-downtime swap, the API can be unreachable for a few seconds when it switches over.
+
 ## Updating
-- **API:** push to `main`; Render redeploys automatically (CI runs the tests on GitHub too).
-- **Web app:** `npm run deploy:web` (builds, then deploys to Firebase Hosting).
+- **Normal way:** open a pull request, let CI pass, merge it. The Deploy workflow does the rest (about 6–10 minutes, mostly Render's build).
+- **By hand** (if the pipeline is unavailable): Render → **Manual Deploy**, and `npm run deploy:web` for the web app.
 
 Keeping it running, logs, error codes and key rotation: [operations.md](operations.md).
 
@@ -110,4 +122,7 @@ Keeping it running, logs, error codes and key rotation: [operations.md](operatio
 | First request after a while takes up to a minute | Normal on the free plan: the API was asleep |
 | Notes stay "Processing…" | The API was asleep; they continue when it wakes. `/ready` should show `"worker":"running"` |
 | `npm run build:web` fails with `EPERM … .next\trace` | `npm run dev:web` is still running and holds the `.next` folder: stop it first |
+| Deploy workflow: "RENDER_DEPLOY_HOOK_URL secret is missing" / "FIREBASE_SERVICE_ACCOUNT secret is missing" | Step 6 isn't finished; add the secret in GitHub → Settings → Secrets and variables → Actions |
+| Deploy workflow waits, then "did not go live" | The Render build failed (see its Events/Logs), or the service still has Auto-Deploy on and is building another commit |
+| Deploy workflow: Firebase "403" / "permission" error | The deploy service account lacks the Firebase Hosting Admin role |
 | `npx firebase-tools@13.x` fails with `ERR_REQUIRE_ESM` (uuid) | Old 13.x versions pick up a broken `universal-analytics` release when downloaded fresh; use `firebase-tools@15.33.0` as above |

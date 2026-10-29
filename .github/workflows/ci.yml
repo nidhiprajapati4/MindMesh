@@ -6,6 +6,12 @@ name: CI
 on:
   push:
   pull_request:
+  # Called by deploy.yml to test the merge commit before anything is deployed.
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -22,6 +28,8 @@ jobs:
       MONGOMS_DOWNLOAD_DIR: /home/runner/.cache/mongodb-binaries
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - uses: actions/setup-node@v4
         with:

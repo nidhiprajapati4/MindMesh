@@ -17,7 +17,9 @@ services:
     # The free plan has 512 MB; the API with the model in memory peaks around 240 MB.
     startCommand: node --max-old-space-size=320 --import tsx apps/api/src/index.ts
     healthCheckPath: /ready
-    autoDeploy: true
+    # Deploys are started by .github/workflows/deploy.yml (a deploy hook), only after a PR is merged
+    # into main and its tests pass, so Render doesn't also deploy on every push.
+    autoDeploy: false
     envVars:
       - key: NODE_ENV
         value: production
