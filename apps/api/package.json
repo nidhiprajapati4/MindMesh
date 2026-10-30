@@ -14,6 +14,7 @@
     "reembed": "tsx scripts/reembed.ts",
     "prefetch-model": "tsx scripts/prefetch-model.ts",
     "demo:seed": "tsx scripts/demo-seed.ts",
+    "import:sample": "tsx scripts/import-sample-data.ts",
     "eval:search": "tsx eval/search/run-eval.ts",
     "eval:ask": "tsx eval/ask/run-eval.ts",
     "eval:organize": "tsx eval/organize/run-eval.ts",
