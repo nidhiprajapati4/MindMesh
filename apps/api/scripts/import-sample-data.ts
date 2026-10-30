@@ -3,7 +3,7 @@
  * links, uploaded-file details and states) and Ask conversations. Search, the graph, topics and
  * duplicates are not stored; they appear once the worker has prepared the notes.
  *
- *   npm run import:sample -w apps/api -- --email test.user@example.com [--file path.json] [--force]
+ *   npm run import:sample -w apps/api -- --email test.user@example.com [--file path.json] [--force] [--reset] [--skip-language]
  *
  * Sign in to the app once with that email first (that creates the account). Uses the database in
  * apps/api/.env. Refuses to touch an account that already has notes unless --force is given.
@@ -61,6 +61,14 @@ async function main() {
   if (users.length > 1) throw new Error(`Several accounts use ${email}; this script needs exactly one.`);
   const userId = String(users[0]._id);
 
+  // --reset first deletes everything this account has (notes, jobs, conversations); for a test account only.
+  if (arg('reset') !== undefined) {
+    const mine = await Note.find({ userId }, { _id: 1 }).lean();
+    await ProcessingJob.deleteMany({ noteId: { $in: mine.map((n) => n._id) } });
+    await Note.deleteMany({ userId });
+    await Conversation.deleteMany({ userId });
+    console.log(`Removed ${mine.length} existing notes from ${email}.`);
+  }
   const existing = await Note.countDocuments({ userId, deletedAt: null });
   if (existing && arg('force') === undefined) throw new Error(`${email} already has ${existing} notes. Add --force to import the sample data anyway.`);
 
@@ -72,6 +80,9 @@ async function main() {
 
   // Notes are created through the service, so links and processing jobs are set up as in the app.
   // A [[link]] to a note created later is connected when that note arrives.
+  // --skip-language drops each note's metadata.language: a database whose text index predates the
+  // textSearchLanguage override rejects values like "ts".
+  const skipLanguage = arg('skip-language') !== undefined;
   const noteIds = new Map<string, string>();
   for (const n of data.notes) {
     const made = await createNote(userId, {
@@ -81,7 +92,7 @@ async function main() {
       tags: n.tags,
       folderId: n.folderId ? folderIds.get(n.folderId)! : null,
       sourceUrl: n.sourceUrl,
-      metadata: n.metadata as never,
+      metadata: (skipLanguage ? { ...n.metadata, language: undefined } : n.metadata) as never,
       pinned: n.pinned,
       archived: n.archived,
     });
