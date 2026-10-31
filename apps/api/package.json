@@ -31,7 +31,7 @@
     "mammoth": "^1.13.0",
     "mongoose": "^8.8.0",
     "multer": "^2.5.0",
-    "pdfjs-dist": "4.8.69",
+    "pdfjs-dist": "6.4.299",
     "zod": "^3.23.8"
   },
   "devDependencies": {
