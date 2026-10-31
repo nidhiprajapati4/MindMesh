@@ -57,6 +57,8 @@ const noteSchema = new Schema(
     sourceUrl: { type: String, default: null, maxlength: 2048 },
     metadata: { type: metadataSchema, default: () => ({}) },
     pinned: { type: Boolean, default: false },
+    // Starred by the user (separate from pinned). Older notes have no value, which reads as false.
+    favourite: { type: Boolean, default: false },
     archived: { type: Boolean, default: false },
     // Soft delete: set when moved to trash; the TTL index purges after the retention window.
     deletedAt: { type: Date, default: null },

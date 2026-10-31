@@ -6,6 +6,10 @@ const userSchema = new Schema(
     email: { type: String, default: '' },
     displayName: { type: String, default: '' },
     photoURL: { type: String, default: '' },
+    // Optional profile details the user can add on the Profile page. Older accounts have none.
+    phone: { type: String, default: '', maxlength: 30 },
+    dob: { type: Date, default: null },
+    birthLocation: { type: String, default: '', maxlength: 100 },
   },
   { timestamps: true }
 );

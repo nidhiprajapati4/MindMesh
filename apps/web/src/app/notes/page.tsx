@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Brand } from '@/components/Brand';
 import { NoteCard } from '@/components/NoteCard';
 import { NoteEditor, blankDraft, type Draft } from '@/components/NoteEditor';
 import { Sidebar, type Filters } from '@/components/Sidebar';
@@ -9,6 +10,7 @@ import { api, errorMessage,
   EDITABLE_METADATA_KEYS,
   isIndexing,
   TYPE_LABELS,
+  type Counts,
   type EditableMetadata,
   type Folder,
   type FolderList,
@@ -40,6 +42,22 @@ const savedMode = (): SearchMode => {
     return v === 'keyword' || v === 'semantic' || v === 'hybrid' ? v : 'hybrid';
   } catch {
     return 'hybrid';
+  }
+};
+
+type LayoutView = 'list' | 'grid' | 'compact';
+const LAYOUTS: { value: LayoutView; label: string; icon: string }[] = [
+  { value: 'list', label: 'List view', icon: 'M4 6h16M4 12h16M4 18h16' },
+  { value: 'grid', label: 'Grid view', icon: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z' },
+  { value: 'compact', label: 'Compact view', icon: 'M4 5h16M4 9.5h16M4 14h16M4 18.5h16' },
+];
+const LAYOUT_KEY = 'mindmesh.layout';
+const savedLayout = (): LayoutView => {
+  try {
+    const v = localStorage.getItem(LAYOUT_KEY);
+    return v === 'list' || v === 'grid' || v === 'compact' ? v : 'list';
+  } catch {
+    return 'list';
   }
 };
 
@@ -85,7 +103,9 @@ export default function NotesPage() {
     menuButtonRef.current?.focus();
   }, []);
 
-  const [filters, setFilters] = useState<Filters>({ view: 'active', type: '', folder: '', tag: '' });
+  const [filters, setFilters] = useState<Filters>({ view: 'active', type: '', folder: '', tag: '', favourite: false });
+  const [layout, setLayout] = useState<LayoutView>('list');
+  const [counts, setCounts] = useState<Counts | null>(null);
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<Sort>('auto');
   const [mode, setMode] = useState<SearchMode>('hybrid');
@@ -106,6 +126,15 @@ export default function NotesPage() {
 
   // Restore the last search mode after mount (localStorage isn't available during server render).
   useEffect(() => setMode(savedMode()), []);
+  useEffect(() => setLayout(savedLayout()), []);
+  const changeLayout = (l: LayoutView) => {
+    setLayout(l);
+    try {
+      localStorage.setItem(LAYOUT_KEY, l);
+    } catch {
+      /* the choice just isn't remembered */
+    }
+  };
   const changeMode = (m: SearchMode) => {
     setMode(m);
     try {
@@ -116,7 +145,8 @@ export default function NotesPage() {
   };
 
   // Meaning/hybrid search only covers active items; archive and trash keep keyword search.
-  const meaningSearch = !!q.trim() && filters.view === 'active' && mode !== 'keyword';
+  // Favourites are filtered by the list endpoint, which search by meaning doesn't support.
+  const meaningSearch = !!q.trim() && filters.view === 'active' && mode !== 'keyword' && !filters.favourite;
 
   const fetchPage = useCallback(
     async (page: number, limit = PAGE_SIZE): Promise<ListState> => {
@@ -141,6 +171,7 @@ export default function NotesPage() {
       if (filters.type) p.set('type', filters.type);
       if (filters.folder) p.set('folder', filters.folder);
       if (filters.tag) p.set('tag', filters.tag);
+      if (filters.favourite) p.set('favourite', 'true');
       p.set('sort', sort === 'auto' ? (q.trim() ? 'relevance' : 'updated') : sort);
       return api<NoteList>(`/api/notes?${p}`);
     },
@@ -148,9 +179,15 @@ export default function NotesPage() {
   );
 
   const loadSidebar = useCallback(async () => {
-    const [f, t] = await Promise.all([api<FolderList>('/api/folders'), api<string[]>('/api/notes/tags')]);
+    const [f, t, c] = await Promise.all([
+      api<FolderList>('/api/folders'),
+      api<string[]>('/api/notes/tags'),
+      // The counts are decoration: if they fail the sidebar just shows labels without numbers.
+      api<Counts>('/api/notes/counts?duplicates=1').catch(() => null),
+    ]);
     setFolders(f);
     setTags(t);
+    setCounts(c);
   }, []);
 
   /** Reloads everything, keeping as many rows as are currently shown. */
@@ -395,18 +432,21 @@ export default function NotesPage() {
 
   const folderName = new Map(folders.folders.map((f) => [f._id, f.name]));
   const items = list?.items ?? [];
-  const filtered = !!(q.trim() || filters.type || filters.folder || filters.tag);
+  const filtered = !!(q.trim() || filters.type || filters.folder || filters.tag || filters.favourite);
   const heading =
+    filters.favourite ? 'Favourites' :
     filters.view === 'trash' ? 'Trash' : filters.view === 'archived' ? 'Archived' :
     filters.folder === 'none' ? 'Unfiled' : folderName.get(filters.folder) ?? (filters.type ? TYPE_LABELS[filters.type] : 'All items');
 
   return (
-    <div className="mx-auto grid min-h-screen max-w-6xl gap-6 px-4 py-6 md:grid-cols-[16rem_1fr]">
+    // The sidebar is fixed to the left edge of the window (md and up), so the content makes room for it.
+    <div className="min-h-screen md:pl-64">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 md:px-8">
       <div className="flex items-center gap-2 md:hidden">
         <button ref={menuButtonRef} className="btn-ghost" onClick={() => setMenuOpen(true)} aria-expanded={menuOpen} aria-controls="sidebar">
           ☰ Menu
         </button>
-        <span className="min-w-0 flex-1 truncate font-serif text-lg font-semibold">{heading}</span>
+        <span className="min-w-0 flex-1"><Brand /></span>
         <button className="btn-primary" onClick={newNote}>New</button>
       </div>
       <Sidebar
@@ -417,6 +457,7 @@ export default function NotesPage() {
         }}
         folders={folders}
         tags={tags}
+        counts={counts}
         onCreateFolder={createFolder}
         onRenameFolder={renameFolder}
         onDeleteFolder={deleteFolder}
@@ -435,9 +476,11 @@ export default function NotesPage() {
 
       <main className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          <input ref={searchRef} className="field min-w-48 flex-1" type="search" placeholder="Search  ( / )" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search items" />
+          <input ref={searchRef} className="field min-w-48 flex-1 basis-full sm:basis-0" type="search" placeholder="Search  ( / )" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search items" />
+          {/* One line on every screen: search-by toggle, then the sort dropdown right after it, then the layout switcher. */}
+          <div className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:flex-none sm:basis-auto">
           {filters.view === 'active' && (
-            <div role="radiogroup" aria-label="Search by" className="flex rounded border border-line bg-white p-0.5 text-sm">
+            <div role="radiogroup" aria-label="Search by" className="flex shrink-0 rounded border border-line bg-white p-0.5 text-sm">
               {SEARCH_MODES.map((m) => (
                 <button
                   key={m.value}
@@ -446,19 +489,20 @@ export default function NotesPage() {
                   aria-label={m.label}
                   title={m.hint}
                   onClick={() => changeMode(m.value)}
-                  className={`rounded px-2.5 py-1 ${mode === m.value ? 'bg-accent text-white' : 'text-muted hover:text-ink'}`}
+                  className={`rounded px-2.5 py-1 ${mode === m.value ? 'bg-select font-medium text-selectInk' : 'text-muted hover:text-ink'}`}
                 >
                   {m.label}
                 </button>
               ))}
             </div>
           )}
-          <select className="field w-auto" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort by" disabled={meaningSearch} title={meaningSearch ? 'Results are ranked by best match' : undefined}>
+          <select className="field !w-auto min-w-0 flex-1 sm:flex-none" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort by" disabled={meaningSearch} title={meaningSearch ? 'Results are ranked by best match' : undefined}>
             <option value="auto">{q.trim() ? 'Best match' : 'Recently updated'}</option>
             <option value="updated">Recently updated</option>
             <option value="created">Recently created</option>
             <option value="title">Title A–Z</option>
           </select>
+          </div>
         </div>
 
         {filters.view === 'active' && (
@@ -479,11 +523,28 @@ export default function NotesPage() {
           <h2 className="font-serif text-xl font-semibold">
             {heading}
             {filters.tag && <span className="ml-2 text-base font-normal text-muted">#{filters.tag}</span>}
+            <span className="ml-2 text-base font-normal text-muted" aria-live="polite">
+              {list && `(${list.total} item${list.total === 1 ? '' : 's'}${list.matchMode === 'partial' && list.total > 0 ? ' · partial-word matches' : ''})`}
+            </span>
           </h2>
-          <span className="text-sm text-muted" aria-live="polite">
-            {list && `${list.total} item${list.total === 1 ? '' : 's'}`}
-            {list?.matchMode === 'partial' && list.total > 0 && ' · partial-word matches'}
-          </span>
+          <div className="flex items-center gap-3">
+            <div role="radiogroup" aria-label="Layout" className="flex shrink-0 rounded border border-line bg-white p-0.5">
+              {LAYOUTS.map((l) => (
+                <button
+                  key={l.value}
+                  role="radio"
+                  aria-checked={layout === l.value}
+                  aria-label={l.label}
+                  title={l.label}
+                  onClick={() => changeLayout(l.value)}
+                  className={`flex h-8 items-center gap-1.5 rounded px-2 text-sm ${layout === l.value ? 'bg-select font-medium text-selectInk' : 'text-muted hover:text-ink'}`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={l.icon} /></svg>
+                  <span className="hidden sm:inline">{l.label.replace(' view', '')}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {list?.warning && (
@@ -506,11 +567,12 @@ export default function NotesPage() {
           </p>
         )}
 
-        <ul className="flex flex-col gap-3">
+        <ul className={layout === 'grid' ? 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3' : layout === 'compact' ? 'flex flex-col gap-1.5' : 'flex flex-col gap-3'}>
           {items.map((n) => (
             <NoteCard
               key={n._id}
               note={n}
+              layout={layout}
               folderName={filters.folder ? undefined : folderName.get(n.folderId ?? '')}
               match={list?.matches?.[n._id]}
               onRetry={() => retryProcessing(n)}
@@ -528,6 +590,7 @@ export default function NotesPage() {
           <button className="btn-ghost self-center" onClick={loadMore}>Load more</button>
         )}
       </main>
+    </div>
 
       {editor && (
         <NoteEditor

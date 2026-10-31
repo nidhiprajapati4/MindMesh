@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Brand } from '@/components/Brand';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Graph } from '@/components/Graph';
@@ -99,6 +100,7 @@ export default function GraphPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 px-4 py-6">
+      <Brand />
       <Link href="/notes" className="text-sm text-accent hover:underline">← Back to notes</Link>
       <div>
         <h1 className="font-serif text-2xl font-semibold">Graph of your notes</h1>

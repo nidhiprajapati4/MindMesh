@@ -8,6 +8,7 @@ import { generateAnswer } from '../../platform/ai-client';
 import { AnswerRefusedError, type AnswerSegment } from '../../platform/generation/types';
 import { QUOTA_EXCEEDED } from '../../platform/quota';
 import type { AskInput } from './ask.schema';
+import { answerLibraryQuestion, type LibraryAnswer } from './library';
 import { retrieveForQuestion, type RetrievedNote } from './retrieve';
 
 export const NOT_FOUND_ANSWER = "I couldn't find anything about that in your notes.";
@@ -29,7 +30,14 @@ type TurnData = {
   costUsd: number;
   createdAt: Date;
 };
-type Prepared = { conversationId: Types.ObjectId | null; history: { question: string; answer: string }[]; sources: RetrievedNote[]; pendingNotes: number };
+type Prepared = {
+  conversationId: Types.ObjectId | null;
+  history: { question: string; answer: string }[];
+  sources: RetrievedNote[];
+  pendingNotes: number;
+  /** Set when the question is about the library itself (counts, lists): answered from the database. */
+  library: LibraryAnswer | null;
+};
 
 const turnText = (t: { segments?: { text?: string | null }[] | null }) => (t.segments ?? []).map((s) => s.text ?? '').join('');
 
@@ -52,6 +60,10 @@ export async function prepareAsk(userId: string, input: AskInput): Promise<Prepa
     previousQuestion = conv.turns.at(-1)?.question;
   }
 
+  // Questions about the library itself ("how many documents do I have?") need no note search or model.
+  const library = await answerLibraryQuestion(userId, input.question);
+  if (library) return { conversationId, history, sources: [], pendingNotes: 0, library };
+
   let sources: RetrievedNote[];
   try {
     sources = await retrieveForQuestion(userId, input.question, previousQuestion);
@@ -65,7 +77,7 @@ export async function prepareAsk(userId: string, input: AskInput): Promise<Prepa
   const pendingNotes = sources.length
     ? 0
     : await Note.countDocuments({ userId, deletedAt: null, archived: false, 'processing.status': { $in: ['pending', 'processing'] } });
-  return { conversationId, history, sources, pendingNotes };
+  return { conversationId, history, sources, pendingNotes, library: null };
 }
 
 export function notFoundText(pendingNotes: number) {
@@ -90,13 +102,14 @@ export async function runAsk(userId: string, input: AskInput, prepared: Prepared
   const { sources, history } = prepared;
   const conversationId =
     prepared.conversationId ?? (await Conversation.create({ userId, title: input.question.slice(0, 80) }))._id;
-  const sourceList = sources.map((s, i) => ({ index: i, noteId: s.noteId, title: s.title, type: s.type }));
+  const lib = prepared.library;
+  const sourceList = (lib ? lib.sources : sources).map((s, i) => ({ index: i, noteId: s.noteId, title: s.title, type: s.type }));
   send('start', { conversationId: String(conversationId), sources: sourceList });
 
   const turn: TurnData = {
     question: input.question,
     segments: [],
-    sources: sources.map((s) => ({ noteId: new Types.ObjectId(s.noteId), title: s.title })),
+    sources: (lib ? lib.sources : sources).map((s) => ({ noteId: new Types.ObjectId(s.noteId), title: s.title })),
     status: 'complete',
     error: null,
     feedback: { rating: null, comment: '' },
@@ -108,7 +121,15 @@ export async function runAsk(userId: string, input: AskInput, prepared: Prepared
   };
   const inRange = (i: number) => Number.isInteger(i) && i >= 0 && i < sources.length;
 
-  if (!sources.length) {
+  if (lib) {
+    // A question about the library: the answer is already worked out, so just send it.
+    turn.model = 'library';
+    turn.segments = lib.segments;
+    for (const seg of lib.segments) {
+      send('text', { text: seg.text });
+      for (const c of seg.citations) send('citation', c);
+    }
+  } else if (!sources.length) {
     // Nothing relevant: say so without calling (or paying for) the model.
     turn.status = 'not_found';
     const text = notFoundText(prepared.pendingNotes);

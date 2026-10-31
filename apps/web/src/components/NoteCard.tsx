@@ -6,6 +6,8 @@ import { LINK_RE, formatBytes, hostOf, isIndexing, linkKey, safeHref, type Match
 type Props = {
   note: Note;
   folderName?: string;
+  /** How much of the item is shown: full card, a card in a grid, or a single line. */
+  layout?: 'list' | 'grid' | 'compact';
   /** Set when the card is a search result. */
   match?: { snippet: string | null; matchedBy: MatchedBy };
   onOpen: () => void;
@@ -64,13 +66,51 @@ function ProcessingBadge({ note: n, onRetry }: { note: Note; onRetry: () => void
   return null;
 }
 
-export function NoteCard({ note: n, folderName, match, onOpen, onPatch, onTrash, onRestore, onDestroy, onRetry, onOpenNote }: Props) {
+function Star({ on, title, onToggle }: { on: boolean; title: string; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={on}
+      aria-label={on ? `Remove ${title} from favourites` : `Add ${title} to favourites`}
+      title={on ? 'Remove from favourites' : 'Add to favourites'}
+      className={`-m-1.5 grid h-8 w-8 shrink-0 place-items-center rounded text-lg leading-none transition-colors hover:bg-ink/5 ${on ? 'text-flag' : 'text-muted hover:text-ink'}`}
+    >
+      <span aria-hidden>{on ? '★' : '☆'}</span>
+    </button>
+  );
+}
+
+export function NoteCard({ note: n, folderName, layout = 'list', match, onOpen, onPatch, onTrash, onRestore, onDestroy, onRetry, onOpenNote }: Props) {
   const trashed = !!n.deletedAt;
   const href = safeHref(n.sourceUrl);
   const preview = match?.snippet || n.content || n.metadata?.description || '';
+  const label = n.title || 'untitled item';
+  const dateText = `${trashed ? 'Trashed ' : ''}${new Date(trashed ? n.deletedAt! : n.updatedAt).toLocaleDateString()}`;
+
+  if (layout === 'compact') {
+    return (
+      <li className={`flex items-center gap-2 rounded border bg-white px-3 py-1.5 text-sm ${n.pinned ? 'border-flag' : 'border-line'}`}>
+        <span className="shrink-0 rounded bg-paper px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted">{TYPE_BADGE[n.type] ?? n.type}</span>
+        {trashed ? (
+          <span className="min-w-0 flex-1 truncate font-serif font-semibold">{n.title || 'Untitled'}</span>
+        ) : (
+          <button className="min-w-0 flex-1 truncate text-left font-serif font-semibold hover:text-accent" onClick={onOpen}>{n.title || 'Untitled'}</button>
+        )}
+        {!trashed && <ProcessingBadge note={n} onRetry={onRetry} />}
+        <time className="hidden shrink-0 text-xs text-muted sm:block" dateTime={trashed ? n.deletedAt! : n.updatedAt}>{dateText}</time>
+        {!trashed && <Star on={!!n.favourite} title={label} onToggle={() => onPatch({ favourite: !n.favourite })} />}
+        {trashed ? (
+          <button className="shrink-0 underline" onClick={onRestore}>Restore</button>
+        ) : (
+          <button className="shrink-0 underline" onClick={onOpen} aria-label={`Edit ${label}`}>Edit</button>
+        )}
+      </li>
+    );
+  }
 
   return (
-    <li className={`rounded border bg-white p-4 ${n.pinned ? 'border-flag' : 'border-line'}`}>
+    <li className={`flex flex-col rounded border bg-white p-4 ${n.pinned ? 'border-flag' : 'border-line'}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -110,24 +150,25 @@ export function NoteCard({ note: n, folderName, match, onOpen, onPatch, onTrash,
             </p>
           )}
         </div>
-        <time className="shrink-0 text-xs text-muted" dateTime={trashed ? n.deletedAt! : n.updatedAt}>
-          {trashed ? 'Trashed ' : ''}{new Date(trashed ? n.deletedAt! : n.updatedAt).toLocaleDateString()}
-        </time>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <time className="text-xs text-muted" dateTime={trashed ? n.deletedAt! : n.updatedAt}>{dateText}</time>
+          {!trashed && <Star on={!!n.favourite} title={label} onToggle={() => onPatch({ favourite: !n.favourite })} />}
+        </div>
       </div>
 
       {!match?.snippet && !!n.keyPoints?.length ? (
         // Long notes, documents and saved links: their key points say more than the first lines.
         <ul className="mt-1 max-w-prose list-disc pl-5 font-serif text-muted" aria-label="Key points">
-          {n.keyPoints.map((p, i) => <li key={i} className="line-clamp-2">{p}</li>)}
+          {n.keyPoints.slice(0, layout === 'grid' ? 2 : undefined).map((p, i) => <li key={i} className="line-clamp-2">{p}</li>)}
         </ul>
       ) : (
         preview && (
-          <p className={`mt-1 line-clamp-3 max-w-prose whitespace-pre-wrap text-muted ${n.type === 'snippet' ? 'font-mono text-sm' : 'font-serif'}`}>{trashed ? preview : withLinks(preview, n, onOpenNote)}</p>
+          <p className={`mt-1 ${layout === 'grid' ? 'line-clamp-2' : 'line-clamp-3'} max-w-prose whitespace-pre-wrap text-muted ${n.type === 'snippet' ? 'font-mono text-sm' : 'font-serif'}`}>{trashed ? preview : withLinks(preview, n, onOpenNote)}</p>
         )
       )}
       {match && MATCH_LABEL[match.matchedBy] && <p className="mt-1 text-xs text-accent">{MATCH_LABEL[match.matchedBy]}</p>}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+      <div className="mt-auto flex flex-wrap items-center gap-2 pt-3 text-sm">
         {n.tags.map((t) => <span key={t} className="rounded-full bg-paper px-2 py-0.5 text-xs">#{t}</span>)}
         <span className="ml-auto flex gap-3">
           {trashed ? (

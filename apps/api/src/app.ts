@@ -8,6 +8,8 @@ import { errorHandler, notFoundHandler } from './middleware/errors';
 import { apiLimits } from './middleware/rate-limit';
 import { requestContextMiddleware } from './middleware/request-context';
 import { askRouter, conversationsRouter } from './modules/ask/ask.routes';
+import savedRouter from './modules/ask/saved.routes';
+import profileRouter from './modules/profile/profile.routes';
 import connectionsRouter from './modules/connections/connections.routes';
 import foldersRouter from './modules/folders/folders.routes';
 import notesRouter from './modules/notes/notes.routes';
@@ -59,6 +61,8 @@ app.use('/api/folders', ...signedIn, foldersRouter);
 app.use('/api/search', ...signedIn, searchRouter);
 app.use('/api/ask', ...signedIn, askRouter);
 app.use('/api/conversations', ...signedIn, conversationsRouter);
+app.use('/api/saved', ...signedIn, savedRouter);
+app.use('/api/profile', ...signedIn, profileRouter);
 app.use('/api/organize', ...signedIn, organizeRouter);
 app.use('/api/connections', ...signedIn, connectionsRouter);
 
