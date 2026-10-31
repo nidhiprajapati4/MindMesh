@@ -4,6 +4,7 @@ import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -19,6 +20,8 @@ type AuthState = {
   signUp: (email: string, password: string) => Promise<unknown>;
   signInWithGoogle: () => Promise<unknown>;
   logout: () => Promise<void>;
+  /** Emails a password-reset link (only works for accounts that have a password). */
+  resetPassword: (email: string) => Promise<void>;
 };
 
 const Ctx = createContext<AuthState | null>(null);
@@ -43,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp: (e, p) => createUserWithEmailAndPassword(auth, e, p),
     signInWithGoogle: () => signInWithPopup(auth, new GoogleAuthProvider()),
     logout: () => signOut(auth),
+    resetPassword: (e) => sendPasswordResetEmail(auth, e),
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

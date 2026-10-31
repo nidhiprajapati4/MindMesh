@@ -27,6 +27,8 @@ export function baseFilter(userId: string, query: ListQuery): FilterQuery<INote>
   if (query.type) filter.type = query.type;
   if (query.folder) filter.folderId = query.folder === 'none' ? null : query.folder;
   if (query.pinned !== undefined) filter.pinned = query.pinned;
+  // Only `true` is matched: older notes have no favourite field at all.
+  if (query.favourite) filter.favourite = true;
   if (query.from || query.to) {
     filter.updatedAt = {};
     if (query.from) filter.updatedAt.$gte = query.from;

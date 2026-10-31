@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Brand } from '@/components/Brand';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { api, errorMessage, type DuplicatePairs, type NoteBrief } from '@/lib/api';
@@ -63,6 +64,7 @@ export default function DuplicatesPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-4xl flex-col gap-4 px-4 py-6">
+      <Brand />
       <Link href="/notes" className="text-sm text-accent hover:underline">← Back to notes</Link>
       <h1 className="font-serif text-2xl font-semibold">Possible duplicates</h1>
       <p className="text-sm text-muted">Notes that say nearly the same thing, or save the same link. Nothing is changed unless you choose to.</p>

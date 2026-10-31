@@ -32,6 +32,8 @@ export type Note = {
   sourceUrl: string | null;
   metadata: NoteMetadata;
   pinned: boolean;
+  /** Older items have no value, which means "not a favourite". */
+  favourite?: boolean;
   archived: boolean;
   deletedAt: string | null;
   createdAt: string;
@@ -201,4 +203,31 @@ export type TopicList = {
   unconnected: { _id: string; title: string; type: NoteType }[];
   unconnectedCount: number;
   capped: boolean;
+};
+
+// --- Sidebar counts, saved answers and profile ----------------------------------------------
+
+export type Counts = {
+  all: number;
+  archived: number;
+  trash: number;
+  favourites: number;
+  types: Record<NoteType, number>;
+  tags: Record<string, number>;
+  conversations: number;
+  saved: number;
+  /** Only present when asked for (?duplicates=1). */
+  duplicates?: number;
+};
+
+export type SavedSummary = { _id: string; question: string; conversationId: string; turnIndex: number; createdAt: string };
+export type SavedAnswer = SavedSummary & { segments: TurnSegment[]; sources: { noteId: string; title: string }[] };
+
+export type Profile = { email: string; displayName: string; photoURL: string; phone: string; dob: string; birthLocation: string };
+
+/** Up to two initials for an avatar. */
+export const initialsOf = (name: string, email: string) => {
+  const source = name.trim() || email.split('@')[0] || '?';
+  const parts = source.split(/[\s._-]+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 };

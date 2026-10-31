@@ -3,6 +3,7 @@ import multer from 'multer';
 import { HttpError } from '../../middleware/errors';
 import { apiLimits } from '../../middleware/rate-limit';
 import { reprocess } from '../ai-processing/jobs';
+import { noteCounts } from './counts';
 import { MAX_UPLOAD_BYTES } from './file-extract';
 import { captureUrlSchema, createNoteSchema, listQuerySchema, objectId, updateNoteSchema, uploadFieldsSchema } from './notes.schema';
 import * as notes from './notes.service';
@@ -20,6 +21,11 @@ const noteId = (id: string) => objectId.parse(id);
 
 router.get('/tags', async (req, res) => {
   res.json(await notes.listTags(req.auth!.userId));
+});
+
+// Numbers for the sidebar labels. ?duplicates=1 also counts possible duplicate pairs.
+router.get('/counts', async (req, res) => {
+  res.json(await noteCounts(req.auth!.userId, req.query.duplicates === '1'));
 });
 
 router.get('/', async (req, res) => {

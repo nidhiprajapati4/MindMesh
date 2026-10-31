@@ -16,6 +16,9 @@ type Props = {
   onOpenNote: (noteId: string) => void;
   /** Omitted while the answer is still being written. */
   onFeedback?: (rating: 'up' | 'down' | null) => void;
+  /** Bookmarks the answer; omitted while it is being written or in the Saved list. */
+  saved?: boolean;
+  onToggleSave?: () => void;
 };
 
 function CitationChip({ n, title, quote, onOpen }: { n: number; title: string; quote: string; onOpen: () => void }) {
@@ -45,7 +48,7 @@ const STATUS_NOTE: Partial<Record<AnswerTurn['status'], string>> = {
   not_found: 'None of your notes seem to cover this. Try different words, or search your notes.',
 };
 
-export function AnswerView({ turn, onOpenNote, onFeedback }: Props) {
+export function AnswerView({ turn, onOpenNote, onFeedback, saved, onToggleSave }: Props) {
   const cited = new Set(turn.segments.flatMap((s) => s.citations.map((c) => c.source)));
   const titleOf = (i: number) => turn.sources[i]?.title || 'Untitled';
 
@@ -87,20 +90,30 @@ export function AnswerView({ turn, onOpenNote, onFeedback }: Props) {
           </div>
         )}
 
-        {onFeedback && (turn.status === 'complete' || turn.status === 'not_found') && (
+        {(onFeedback || onToggleSave) && (turn.status === 'complete' || turn.status === 'not_found') && (
           <div className="mt-3 flex items-center gap-1 text-sm text-muted">
-            Was this helpful?
-            {(['up', 'down'] as const).map((r) => (
+            {onFeedback && 'Was this helpful?'}
+            {onFeedback && (['up', 'down'] as const).map((r) => (
               <button
                 key={r}
                 aria-pressed={turn.feedback?.rating === r}
                 aria-label={r === 'up' ? 'Helpful' : 'Not helpful'}
                 onClick={() => onFeedback(turn.feedback?.rating === r ? null : r)}
-                className={`rounded px-1.5 py-0.5 ${turn.feedback?.rating === r ? 'bg-accent text-white' : 'hover:bg-paper'}`}
+                className={`rounded px-1.5 py-0.5 ${turn.feedback?.rating === r ? 'bg-select ring-1 ring-selectLine' : 'hover:bg-paper'}`}
               >
                 {r === 'up' ? '👍' : '👎'}
               </button>
             ))}
+            {onToggleSave && (
+              <button
+                aria-pressed={!!saved}
+                onClick={onToggleSave}
+                className={`ml-auto rounded px-2 py-1 text-sm font-medium ${saved ? 'bg-select text-selectInk' : 'text-accent hover:bg-paper'}`}
+                title={saved ? 'Remove from your saved answers' : 'Save this answer to read again later'}
+              >
+                {saved ? '★ Saved' : '☆ Save answer'}
+              </button>
+            )}
           </div>
         )}
       </div>

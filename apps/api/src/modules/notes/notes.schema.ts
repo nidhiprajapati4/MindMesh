@@ -35,6 +35,7 @@ const noteFields = {
   sourceUrl: httpUrl.nullable(),
   metadata,
   pinned: z.boolean(),
+  favourite: z.boolean(),
   archived: z.boolean(),
 };
 
@@ -49,6 +50,7 @@ export const createNoteSchema = z
     sourceUrl: noteFields.sourceUrl.default(null),
     metadata: metadata.default({}),
     pinned: noteFields.pinned.default(false),
+    favourite: noteFields.favourite.default(false),
     archived: noteFields.archived.default(false),
   })
   .strict();
@@ -85,6 +87,7 @@ export const listQuerySchema = z.object({
   // 'none' = items not in any folder
   folder: z.union([z.literal('none'), objectId]).optional(),
   pinned: bool.optional(),
+  favourite: bool.optional(),
   view: z.enum(['active', 'archived', 'trash']).default('active'),
   // Phase 1 compatibility: ?archived=true maps to view=archived
   archived: bool.optional(),
