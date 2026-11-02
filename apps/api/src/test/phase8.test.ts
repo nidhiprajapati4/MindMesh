@@ -243,3 +243,55 @@ describe('Profile (F7)', () => {
     assert.equal((await B.get('/api/profile')).body.birthLocation, '');
   });
 });
+
+describe('Edge cases and validation', () => {
+  it('EDG-01: a non-boolean favourite is rejected', async () => {
+    const n = await A.post('/api/notes', { title: 'Edge', content: 'x' });
+    const r = await A.patch(`/api/notes/${n.body._id}`, { favourite: 'yes' });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.error.code, 'VALIDATION_FAILED');
+  });
+
+  it('EDG-02: a trashed favourite no longer appears in the favourites list', async () => {
+    const n = await A.post('/api/notes', { title: 'Soon trashed', content: 'x', favourite: true });
+    await A.del(`/api/notes/${n.body._id}`);
+    const favs = await A.get('/api/notes?favourite=true');
+    assert.ok(!favs.body.items.some((i: { _id: string }) => i._id === n.body._id));
+  });
+
+  it('EDG-03: counts, saved answers and profile need a signed-in user', async () => {
+    for (const path of ['/api/notes/counts', '/api/saved', '/api/profile']) {
+      const res = await fetch(`${api.base}${path}`);
+      assert.equal(res.status, 401, path);
+    }
+  });
+
+  it('EDG-04: saving an answer from a conversation that does not exist is a 404, and a bad body a 400', async () => {
+    const missing = await A.post('/api/saved', { conversationId: '64b000000000000000000000', turnIndex: 0 });
+    assert.equal(missing.status, 404);
+    const bad = await A.post('/api/saved', { conversationId: 'nope', turnIndex: -1 });
+    assert.equal(bad.status, 400);
+  });
+
+  it('EDG-05: another user cannot open or delete a saved answer', async () => {
+    const asked = await ask(tokenA, { question: 'how many notes do i have' });
+    const conversationId = asked.events.find((e) => e.event === 'done')!.data.conversationId;
+    const saved = await A.post('/api/saved', { conversationId, turnIndex: 0 });
+    assert.ok([200, 201].includes(saved.status));
+    assert.equal((await B.get(`/api/saved/${saved.body._id}`)).status, 404);
+    assert.equal((await B.del(`/api/saved/${saved.body._id}`)).status, 404);
+    assert.equal((await A.get(`/api/saved/${saved.body._id}`)).status, 200);
+  });
+
+  it('EDG-06: the profile rejects unknown fields and over-long values', async () => {
+    assert.equal((await A.patch('/api/profile', { isAdmin: true })).status, 400);
+    assert.equal((await A.patch('/api/profile', { birthLocation: 'x'.repeat(101) })).status, 400);
+  });
+
+  it('EDG-07: ordinary chatter is not mistaken for a library question', () => {
+    for (const q of ['hello', 'thanks', 'what is the capital of France']) {
+      assert.equal(parseLibraryQuestion(q, [], now0), null, q);
+    }
+  });
+});
+const now0 = new Date('2026-10-30T12:00:00');
