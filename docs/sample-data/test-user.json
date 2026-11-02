@@ -1,0 +1,710 @@
+{
+  "_readme": "Sample library for a MindMesh test user. Records in 'user', 'folders', 'notes' and 'conversations' follow the API models (apps/api/src/models). Ids are readable placeholders (folder-*, note-*); replace them with real ObjectIds when importing. Sections 'tags', 'searches', 'suggestions', 'duplicates', 'graph' and 'topics' are the results the app should show for this library: values such as similarity scores are illustrative, not exact.",
+  "user": {
+    "firebaseUid": "test-uid-0001",
+    "email": "test.user@example.com",
+    "displayName": "Test User",
+    "photoURL": ""
+  },
+  "folders": [
+    { "id": "folder-work", "name": "Work", "color": "#0F6E7A", "createdAt": "2026-09-01T08:00:00.000Z", "updatedAt": "2026-09-01T08:00:00.000Z" },
+    { "id": "folder-kitchen", "name": "Kitchen", "color": "#C2410C", "createdAt": "2026-09-01T08:05:00.000Z", "updatedAt": "2026-09-01T08:05:00.000Z" },
+    { "id": "folder-fitness", "name": "Fitness", "color": "#15803D", "createdAt": "2026-09-01T08:10:00.000Z", "updatedAt": "2026-09-01T08:10:00.000Z" },
+    { "id": "folder-learning", "name": "Learning", "color": "#7C3AED", "createdAt": "2026-09-01T08:15:00.000Z", "updatedAt": "2026-09-01T08:15:00.000Z" },
+    { "id": "folder-projects", "name": "Side Projects", "color": "#B45309", "createdAt": "2026-09-01T08:20:00.000Z", "updatedAt": "2026-09-01T08:20:00.000Z" },
+    { "id": "folder-travel", "name": "Travel", "color": null, "createdAt": "2026-09-01T08:25:00.000Z", "updatedAt": "2026-09-01T08:25:00.000Z" }
+  ],
+  "notes": [
+    {
+      "id": "note-01",
+      "type": "note",
+      "title": "Sourdough hydration",
+      "content": "Hydration is water weight divided by flour weight. 70% is a good start: the dough is easy to shape and still gives an open crumb.\n\nHigher hydration (75-80%) gives bigger holes but is sticky; use wet hands and a bench scraper.\nWhole wheat flour drinks more water, so add 5% more when swapping in a third whole wheat.",
+      "tags": ["baking", "bread", "sourdough"],
+      "folderId": "folder-kitchen",
+      "sourceUrl": null,
+      "metadata": {},
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-10T09:01:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-10T09:00:00.000Z",
+      "updatedAt": "2026-09-10T09:00:00.000Z"
+    },
+    {
+      "id": "note-02",
+      "type": "note",
+      "title": "Sourdough hydration tips",
+      "content": "Hydration means the weight of water compared with the weight of flour. Begin at 70%: easy to shape, and the crumb still opens up.\n\nWith 75-80% hydration you get larger holes, but the dough is sticky, so wet your hands and use a scraper.\nWhole wheat absorbs more water: add about 5% extra when a third of the flour is whole wheat.",
+      "tags": ["baking", "sourdough"],
+      "folderId": "folder-kitchen",
+      "sourceUrl": null,
+      "metadata": {},
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-12T18:31:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-12T18:30:00.000Z",
+      "updatedAt": "2026-09-12T18:30:00.000Z"
+    },
+    {
+      "id": "note-03",
+      "type": "url",
+      "title": "Sourdough (Wikipedia)",
+      "content": "Background reading on how wild yeast and lactobacilli make bread rise.",
+      "tags": ["baking", "reading", "sourdough"],
+      "folderId": "folder-kitchen",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Sourdough",
+      "metadata": {
+        "siteName": "Wikipedia",
+        "description": "Sourdough is bread made by the fermentation of dough using wild lactobacillaceae and yeast.",
+        "language": "en"
+      },
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-13T07:46:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-13T07:45:00.000Z",
+      "updatedAt": "2026-09-13T07:45:00.000Z"
+    },
+    {
+      "id": "note-04",
+      "type": "note",
+      "title": "Easy run pace",
+      "content": "An easy run should feel conversational: you can speak full sentences. For me that is about 6:15 per km, or heart rate below 145.\n\nMost weekly mileage should be easy. Hard days are only worth it when the easy days leave you fresh.",
+      "tags": ["fitness", "running", "training"],
+      "folderId": "folder-fitness",
+      "sourceUrl": null,
+      "metadata": {},
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-15T06:31:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-15T06:30:00.000Z",
+      "updatedAt": "2026-09-15T06:30:00.000Z"
+    },
+    {
+      "id": "note-05",
+      "type": "note",
+      "title": "Weekly training plan",
+      "content": "Mon: rest\nTue: intervals, 6 x 800 m\nWed: [[Easy run pace]] for 40 minutes\nThu: [[Strength basics]] (squat, row, press)\nFri: rest or a walk\nSat: long run, building from 12 km to 16 km\nSun: easy run or swim",
+      "tags": ["fitness", "plans", "running"],
+      "folderId": "folder-fitness",
+      "sourceUrl": null,
+      "metadata": {},
+      "pinned": true,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-20T07:01:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [
+        { "key": "easy run pace", "title": "Easy run pace", "noteId": "note-04" },
+        { "key": "strength basics", "title": "Strength basics", "noteId": null }
+      ],
+      "createdAt": "2026-09-20T07:00:00.000Z",
+      "updatedAt": "2026-09-28T07:00:00.000Z"
+    },
+    {
+      "id": "note-06",
+      "type": "idea",
+      "title": "Pantry tracker app",
+      "content": "An app that tracks what is in the pantry by scanning receipts, warns before things expire, and suggests recipes from what is left.\n\nFirst version: manual entry plus expiry reminders. Receipt scanning only if people actually use it.",
+      "tags": ["app", "cooking", "idea"],
+      "folderId": "folder-projects",
+      "sourceUrl": null,
+      "metadata": {},
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-22T20:11:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-22T20:10:00.000Z",
+      "updatedAt": "2026-09-22T20:10:00.000Z"
+    },
+    {
+      "id": "note-07",
+      "type": "idea",
+      "title": "Blog series on note-taking habits",
+      "content": "Three posts: why capture beats organise, how to review notes weekly in 15 minutes, and links between notes as a second brain.\n\nStart with the weekly review post: it has the most practical advice.",
+      "tags": ["idea", "writing"],
+      "folderId": null,
+      "sourceUrl": null,
+      "metadata": {},
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-23T11:01:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-23T11:00:00.000Z",
+      "updatedAt": "2026-09-23T11:00:00.000Z"
+    },
+    {
+      "id": "note-08",
+      "type": "snippet",
+      "title": "useDebounce hook",
+      "content": "import { useEffect, useState } from 'react';\n\nexport function useDebounce<T>(value: T, delayMs = 300): T {\n  const [debounced, setDebounced] = useState(value);\n  useEffect(() => {\n    const id = setTimeout(() => setDebounced(value), delayMs);\n    return () => clearTimeout(id);\n  }, [value, delayMs]);\n  return debounced;\n}",
+      "tags": ["react", "snippet", "typescript"],
+      "folderId": "folder-projects",
+      "sourceUrl": null,
+      "metadata": { "language": "ts" },
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-24T14:21:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-24T14:20:00.000Z",
+      "updatedAt": "2026-09-24T14:20:00.000Z"
+    },
+    {
+      "id": "note-09",
+      "type": "snippet",
+      "title": "Restart a Kubernetes deployment",
+      "content": "# Rolling restart without changing the image\nkubectl rollout restart deployment/api -n production\n\n# Watch it finish\nkubectl rollout status deployment/api -n production\n\n# Roll back if the new pods fail\nkubectl rollout undo deployment/api -n production",
+      "tags": ["bash", "kubernetes", "snippet"],
+      "folderId": "folder-work",
+      "sourceUrl": null,
+      "metadata": { "language": "bash" },
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-25T10:06:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-25T10:05:00.000Z",
+      "updatedAt": "2026-09-25T10:05:00.000Z"
+    },
+    {
+      "id": "note-10",
+      "type": "note",
+      "title": "Kubernetes probes",
+      "content": "Liveness probe: is the container still working? If it fails, kubelet restarts the container.\nReadiness probe: should this pod get traffic? If it fails, the pod is removed from the service endpoints but not restarted.\nStartup probe: gives slow-starting apps time before the liveness probe begins.\n\nA liveness probe that checks a dependency (like the database) can cause restart storms. Keep it cheap and local.",
+      "tags": ["devops", "kubernetes"],
+      "folderId": "folder-work",
+      "sourceUrl": null,
+      "metadata": {},
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-26T09:31:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-26T09:30:00.000Z",
+      "updatedAt": "2026-09-26T09:30:00.000Z"
+    },
+    {
+      "id": "note-11",
+      "type": "note",
+      "title": "Debugging CrashLoopBackOff",
+      "content": "A pod in CrashLoopBackOff starts, crashes, and is restarted with growing delays.\n\n1. kubectl describe pod: read Events and the last state's exit code.\n2. kubectl logs --previous: the logs of the crashed container.\n3. Exit code 137 usually means out of memory; check the memory limit.\n4. A failing liveness probe also causes restarts: see [[Kubernetes probes]].",
+      "tags": ["debugging", "devops", "kubernetes"],
+      "folderId": "folder-work",
+      "sourceUrl": null,
+      "metadata": {},
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-26T15:16:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [
+        { "key": "kubernetes probes", "title": "Kubernetes probes", "noteId": "note-10" }
+      ],
+      "createdAt": "2026-09-26T15:15:00.000Z",
+      "updatedAt": "2026-09-26T15:15:00.000Z"
+    },
+    {
+      "id": "note-12",
+      "type": "note",
+      "title": "Platform runbook",
+      "content": "Before a release: check the pod memory limits and plan the [[Rolling deployments]].\nIf pods restart after the release, start with [[Debugging CrashLoopBackOff]] and the [[Kubernetes probes]] note.\nRollback command is in the Kubernetes snippets.",
+      "tags": ["devops", "kubernetes", "runbook"],
+      "folderId": "folder-work",
+      "sourceUrl": null,
+      "metadata": {},
+      "pinned": true,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-27T08:01:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [
+        { "key": "rolling deployments", "title": "Rolling deployments", "noteId": null },
+        { "key": "debugging crashloopbackoff", "title": "Debugging CrashLoopBackOff", "noteId": "note-11" },
+        { "key": "kubernetes probes", "title": "Kubernetes probes", "noteId": "note-10" }
+      ],
+      "createdAt": "2026-09-27T08:00:00.000Z",
+      "updatedAt": "2026-09-29T08:00:00.000Z"
+    },
+    {
+      "id": "note-13",
+      "type": "url",
+      "title": "MDN: Using the Fetch API",
+      "content": "Reference for fetch(): requests, responses, headers, and handling errors (a 404 does not reject the promise).",
+      "tags": ["javascript", "reading", "web"],
+      "folderId": "folder-learning",
+      "sourceUrl": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "metadata": {
+        "siteName": "MDN Web Docs",
+        "description": "The Fetch API provides a JavaScript interface for making HTTP requests and processing the responses.",
+        "language": "en"
+      },
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-28T12:01:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-28T12:00:00.000Z",
+      "updatedAt": "2026-09-28T12:00:00.000Z"
+    },
+    {
+      "id": "note-14",
+      "type": "url",
+      "title": "Kubernetes docs: Configure liveness, readiness and startup probes",
+      "content": "Official guide with YAML examples for HTTP, TCP and command probes, and how to tune initialDelaySeconds and failureThreshold.",
+      "tags": ["devops", "kubernetes", "reading"],
+      "folderId": "folder-work",
+      "sourceUrl": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
+      "metadata": {
+        "siteName": "Kubernetes",
+        "description": "This page shows how to configure liveness, readiness and startup probes for containers.",
+        "language": "en"
+      },
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-09-29T09:01:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-09-29T09:00:00.000Z",
+      "updatedAt": "2026-09-29T09:00:00.000Z"
+    },
+    {
+      "id": "note-15",
+      "type": "url",
+      "title": "Configure probes (saved again)",
+      "content": "Saved this page a second time from a newsletter link.",
+      "tags": ["devops", "kubernetes", "reading"],
+      "folderId": "folder-work",
+      "sourceUrl": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/?utm_source=newsletter",
+      "metadata": {
+        "siteName": "Kubernetes",
+        "description": "This page shows how to configure liveness, readiness and startup probes for containers.",
+        "language": "en"
+      },
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-10-02T17:21:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-10-02T17:20:00.000Z",
+      "updatedAt": "2026-10-02T17:20:00.000Z"
+    },
+    {
+      "id": "note-16",
+      "type": "document",
+      "title": "Q3 Product Roadmap",
+      "content": "Q3 Product Roadmap\n\nGoals: reduce time-to-first-note below 30 seconds, ship search by meaning to all users, and keep the free plan within its limits.\n\nJuly: onboarding checklist and import from Markdown files.\nAugust: Ask with citations, tag and folder suggestions.\nSeptember: graph view, duplicate detection and the mobile drawer.\n\nRisks: the free server sleeps after 15 idle minutes, so the first request is slow. Mitigation: show a waking-up notice and keep the page responsive.\n\nSuccess metrics: 70% of new accounts create 5 notes in their first week; median search takes under 1.5 seconds once the server is awake.",
+      "tags": ["planning", "roadmap", "work"],
+      "folderId": "folder-work",
+      "sourceUrl": null,
+      "metadata": {
+        "fileName": "Q3 Product Roadmap.pdf",
+        "fileSize": 184320,
+        "mimeType": "application/pdf",
+        "pageCount": 12,
+        "truncated": false,
+        "language": "en"
+      },
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-10-03T08:03:00.000Z", "error": null },
+      "keyPoints": [
+        "The goals are time-to-first-note under 30 seconds, search by meaning for everyone, and staying within the free plan.",
+        "July brings onboarding and Markdown import, August brings Ask with citations, September brings the graph and duplicate detection.",
+        "The main risk is the free server sleeping after 15 idle minutes, handled with a waking-up notice."
+      ],
+      "outLinks": [],
+      "createdAt": "2026-10-03T08:00:00.000Z",
+      "updatedAt": "2026-10-03T08:00:00.000Z"
+    },
+    {
+      "id": "note-17",
+      "type": "document",
+      "title": "Lisbon trip itinerary",
+      "content": "Lisbon, 5 days in November\n\nDay 1: arrive, tram 28 up to Alfama, dinner at a tasca.\nDay 2: Belem: tower, monastery, and the custard tarts.\nDay 3: day trip to Sintra, Pena Palace first thing to beat the crowds.\nDay 4: LX Factory, river walk, sunset at a miradouro.\nDay 5: breakfast, pack, airport at 14:00.\n\nBooked: flights (confirmation in email), apartment in Graca for 4 nights. Not yet booked: Sintra tickets.",
+      "tags": ["lisbon", "plans", "travel"],
+      "folderId": "folder-travel",
+      "sourceUrl": null,
+      "metadata": {
+        "fileName": "Lisbon trip itinerary.docx",
+        "fileSize": 48230,
+        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "pageCount": 3,
+        "truncated": false,
+        "language": "en"
+      },
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-10-05T19:03:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-10-05T19:00:00.000Z",
+      "updatedAt": "2026-10-05T19:00:00.000Z"
+    },
+    {
+      "id": "note-18",
+      "type": "document",
+      "title": "Embeddings and RAG study notes",
+      "content": "# Embeddings and retrieval-augmented generation\n\nAn embedding turns text into a list of numbers so that texts with similar meaning end up close together. Cosine similarity measures how close.\n\nSemantic search embeds the query and returns the notes whose vectors are nearest. It finds 'stop pods restarting' even if the note only says 'CrashLoopBackOff'.\n\nRetrieval-augmented generation (RAG) first retrieves the most relevant passages, then asks a model to answer using only those passages and to cite them.\n\nChunking: long documents are split into overlapping chunks of a few hundred words, so a question can match the right paragraph instead of a whole file.\n\nCommon failure: answering from general knowledge when the notes do not contain the answer. Fix: tell the model to say 'not found' when the passages do not support an answer.",
+      "tags": ["ai", "embeddings", "rag", "reading"],
+      "folderId": "folder-learning",
+      "sourceUrl": null,
+      "metadata": {
+        "fileName": "embeddings-and-rag.md",
+        "fileSize": 2146,
+        "mimeType": "text/markdown",
+        "truncated": false,
+        "language": "en"
+      },
+      "pinned": false,
+      "archived": false,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-10-08T21:02:00.000Z", "error": null },
+      "keyPoints": [
+        "An embedding turns text into numbers so texts with similar meaning are close, and cosine similarity measures how close.",
+        "RAG retrieves the most relevant passages first, then answers only from them and cites them.",
+        "To avoid answering from general knowledge, the model must say 'not found' when the passages do not support an answer."
+      ],
+      "outLinks": [],
+      "createdAt": "2026-10-08T21:00:00.000Z",
+      "updatedAt": "2026-10-08T21:00:00.000Z"
+    },
+    {
+      "id": "note-19",
+      "type": "note",
+      "title": "Old packing list (Portugal 2025)",
+      "content": "Passport, charger, adapter, light rain jacket, walking shoes, sunscreen, small first-aid kit, reusable water bottle.\n\nNext time: leave the second pair of jeans at home.",
+      "tags": ["packing", "travel"],
+      "folderId": "folder-travel",
+      "sourceUrl": null,
+      "metadata": {},
+      "pinned": false,
+      "archived": true,
+      "deletedAt": null,
+      "processing": { "status": "ready", "updatedAt": "2026-06-14T10:01:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-06-14T10:00:00.000Z",
+      "updatedAt": "2026-10-05T19:10:00.000Z"
+    },
+    {
+      "id": "note-20",
+      "type": "document",
+      "title": "Draft meeting minutes",
+      "content": "Sprint planning, draft minutes. Replaced by the final version that was shared with the team, so this copy was moved to trash.",
+      "tags": ["meetings"],
+      "folderId": "folder-work",
+      "sourceUrl": null,
+      "metadata": {
+        "fileName": "draft-minutes.txt",
+        "fileSize": 612,
+        "mimeType": "text/plain",
+        "truncated": false
+      },
+      "pinned": false,
+      "archived": false,
+      "deletedAt": "2026-10-20T09:00:00.000Z",
+      "processing": { "status": "ready", "updatedAt": "2026-10-10T15:01:00.000Z", "error": null },
+      "keyPoints": [],
+      "outLinks": [],
+      "createdAt": "2026-10-10T15:00:00.000Z",
+      "updatedAt": "2026-10-20T09:00:00.000Z"
+    }
+  ],
+  "uploadedFiles": [
+    { "noteId": "note-16", "fileName": "Q3 Product Roadmap.pdf", "mimeType": "application/pdf", "fileSize": 184320, "pageCount": 12, "folderId": "folder-work", "uploadedAt": "2026-10-03T08:00:00.000Z" },
+    { "noteId": "note-17", "fileName": "Lisbon trip itinerary.docx", "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "fileSize": 48230, "pageCount": 3, "folderId": "folder-travel", "uploadedAt": "2026-10-05T19:00:00.000Z" },
+    { "noteId": "note-18", "fileName": "embeddings-and-rag.md", "mimeType": "text/markdown", "fileSize": 2146, "pageCount": null, "folderId": "folder-learning", "uploadedAt": "2026-10-08T21:00:00.000Z" },
+    { "noteId": "note-20", "fileName": "draft-minutes.txt", "mimeType": "text/plain", "fileSize": 612, "pageCount": null, "folderId": "folder-work", "uploadedAt": "2026-10-10T15:00:00.000Z", "inTrash": true }
+  ],
+  "savedLinks": [
+    { "noteId": "note-03", "url": "https://en.wikipedia.org/wiki/Sourdough", "siteName": "Wikipedia" },
+    { "noteId": "note-13", "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch", "siteName": "MDN Web Docs" },
+    { "noteId": "note-14", "url": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/", "siteName": "Kubernetes" },
+    { "noteId": "note-15", "url": "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/?utm_source=newsletter", "siteName": "Kubernetes" }
+  ],
+  "tags": {
+    "_note": "Tags on active notes (not archived, not in trash), with how many notes use each.",
+    "baking": 3, "sourdough": 3, "bread": 1,
+    "running": 2, "training": 1, "fitness": 2, "plans": 2,
+    "idea": 2, "app": 1, "cooking": 1, "writing": 1,
+    "typescript": 1, "react": 1, "snippet": 2, "bash": 1, "javascript": 1, "web": 1,
+    "kubernetes": 6, "devops": 5, "debugging": 1, "runbook": 1,
+    "reading": 5, "ai": 1, "embeddings": 1, "rag": 1,
+    "roadmap": 1, "planning": 1, "work": 1,
+    "travel": 1, "lisbon": 1
+  },
+  "searches": {
+    "keyword": [
+      { "query": "sourdough", "type": "keyword", "expectedNotes": ["note-01", "note-02", "note-03"], "why": "Word appears in the title and tags of all three." },
+      { "query": "kubernetes", "type": "keyword", "expectedNotes": ["note-10", "note-14", "note-15", "note-11", "note-12", "note-09"], "why": "Title and tag matches rank first." },
+      { "query": "lisbon", "type": "keyword", "expectedNotes": ["note-17"], "why": "Found inside the uploaded Word document." },
+      { "query": "tag:snippet", "type": "keyword", "expectedNotes": ["note-08", "note-09"], "why": "Tag filter." }
+    ],
+    "meaning": [
+      { "query": "how do I stop my pods from restarting", "type": "meaning", "expectedNotes": ["note-11", "note-10", "note-12", "note-09"], "why": "No note uses these words, but CrashLoopBackOff and probes mean the same thing." },
+      { "query": "making bread rise and get a light crumb", "type": "meaning", "expectedNotes": ["note-01", "note-02", "note-03"], "why": "Matches hydration and fermentation notes." },
+      { "query": "how fast should I jog on a slow day", "type": "meaning", "expectedNotes": ["note-04", "note-05"], "why": "Easy run pace." },
+      { "query": "ways to find notes by what they mean", "type": "meaning", "expectedNotes": ["note-18"], "why": "Embeddings study notes." },
+      { "query": "things to do on holiday in Portugal", "type": "meaning", "expectedNotes": ["note-17", "note-19"], "why": "Itinerary, and the archived packing list when archived items are included." }
+    ]
+  },
+  "suggestions": {
+    "_note": "What 'Suggest tags / folder' should offer for new drafts, based on the notes above.",
+    "drafts": [
+      {
+        "title": "Rolling update strategy",
+        "content": "Set maxUnavailable to 0 and maxSurge to 1 so a deployment never drops below the desired pod count, and check readiness probes before shifting traffic.",
+        "suggestedTags": ["kubernetes", "devops"],
+        "suggestedFolderId": "folder-work"
+      },
+      {
+        "title": "Rye starter feeding",
+        "content": "Feed the rye starter twice a day at 1:5:5 with warm water until it doubles within six hours.",
+        "suggestedTags": ["baking", "sourdough"],
+        "suggestedFolderId": "folder-kitchen"
+      },
+      {
+        "title": "Tempo run",
+        "content": "20 minutes at comfortably hard effort, after a 10 minute warm-up. Heart rate around 165.",
+        "suggestedTags": ["running", "training", "fitness"],
+        "suggestedFolderId": "folder-fitness"
+      }
+    ]
+  },
+  "duplicates": {
+    "_note": "Pairs shown on the Duplicates page.",
+    "pairs": [
+      { "a": "note-14", "b": "note-15", "reason": "same-link", "score": 1 },
+      { "a": "note-01", "b": "note-02", "reason": "similar", "score": 0.93 }
+    ],
+    "scanned": 18
+  },
+  "conversations": [
+    {
+      "id": "conversation-01",
+      "title": "Why do my pods keep restarting?",
+      "turns": [
+        {
+          "question": "Why do my pods keep restarting after a release?",
+          "segments": [
+            {
+              "text": "A pod in CrashLoopBackOff starts, crashes, and is restarted with growing delays. Start with the previous container logs and the exit code of the last state.",
+              "citations": [{ "source": 0, "quote": "kubectl logs --previous: the logs of the crashed container." }]
+            },
+            {
+              "text": "Exit code 137 usually means the container ran out of memory, so check its memory limit. A liveness probe that fails will also restart the container.",
+              "citations": [
+                { "source": 0, "quote": "Exit code 137 usually means out of memory; check the memory limit." },
+                { "source": 1, "quote": "If it fails, kubelet restarts the container." }
+              ]
+            }
+          ],
+          "sources": [
+            { "noteId": "note-11", "title": "Debugging CrashLoopBackOff" },
+            { "noteId": "note-10", "title": "Kubernetes probes" }
+          ],
+          "status": "complete",
+          "error": null,
+          "feedback": { "rating": "up", "comment": "" },
+          "model": "quotes",
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "costUsd": 0,
+          "createdAt": "2026-10-12T09:15:00.000Z"
+        },
+        {
+          "question": "What should a liveness probe not check?",
+          "segments": [
+            {
+              "text": "It should not check dependencies such as the database, because that can cause restart storms. Keep it cheap and local.",
+              "citations": [{ "source": 0, "quote": "A liveness probe that checks a dependency (like the database) can cause restart storms. Keep it cheap and local." }]
+            }
+          ],
+          "sources": [{ "noteId": "note-10", "title": "Kubernetes probes" }],
+          "status": "complete",
+          "error": null,
+          "feedback": { "rating": null, "comment": "" },
+          "model": "quotes",
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "costUsd": 0,
+          "createdAt": "2026-10-12T09:16:30.000Z"
+        }
+      ],
+      "createdAt": "2026-10-12T09:15:00.000Z",
+      "updatedAt": "2026-10-12T09:16:30.000Z"
+    },
+    {
+      "id": "conversation-02",
+      "title": "Bread and trip questions",
+      "turns": [
+        {
+          "question": "What hydration should I start with for sourdough?",
+          "segments": [
+            {
+              "text": "Start at 70% hydration: the dough is easy to shape and the crumb still opens up. Go to 75-80% later for bigger holes, using wet hands because it is sticky.",
+              "citations": [
+                { "source": 0, "quote": "70% is a good start: the dough is easy to shape and still gives an open crumb." },
+                { "source": 1, "quote": "With 75-80% hydration you get larger holes, but the dough is sticky" }
+              ]
+            }
+          ],
+          "sources": [
+            { "noteId": "note-01", "title": "Sourdough hydration" },
+            { "noteId": "note-02", "title": "Sourdough hydration tips" }
+          ],
+          "status": "complete",
+          "error": null,
+          "feedback": { "rating": "up", "comment": "Exactly what I needed." },
+          "model": "quotes",
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "costUsd": 0,
+          "createdAt": "2026-10-14T18:00:00.000Z"
+        },
+        {
+          "question": "What is on day 3 of the Lisbon trip?",
+          "segments": [
+            {
+              "text": "Day 3 is a day trip to Sintra, visiting Pena Palace first thing to beat the crowds. Sintra tickets are not booked yet.",
+              "citations": [
+                { "source": 0, "quote": "Day 3: day trip to Sintra, Pena Palace first thing to beat the crowds." },
+                { "source": 0, "quote": "Not yet booked: Sintra tickets." }
+              ]
+            }
+          ],
+          "sources": [{ "noteId": "note-17", "title": "Lisbon trip itinerary" }],
+          "status": "complete",
+          "error": null,
+          "feedback": { "rating": null, "comment": "" },
+          "model": "quotes",
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "costUsd": 0,
+          "createdAt": "2026-10-14T18:02:00.000Z"
+        },
+        {
+          "question": "What is the capital of Peru?",
+          "segments": [],
+          "sources": [],
+          "status": "not_found",
+          "error": null,
+          "feedback": { "rating": "down", "comment": "Expected: the notes have nothing about it, which is correct." },
+          "model": "quotes",
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "costUsd": 0,
+          "createdAt": "2026-10-14T18:04:00.000Z"
+        }
+      ],
+      "createdAt": "2026-10-14T18:00:00.000Z",
+      "updatedAt": "2026-10-14T18:04:00.000Z"
+    },
+    {
+      "id": "conversation-03",
+      "title": "How does RAG avoid made-up answers?",
+      "turns": [
+        {
+          "question": "How does RAG avoid made-up answers?",
+          "segments": [
+            {
+              "text": "It retrieves the most relevant passages first and asks the model to answer only from them, with citations. When the passages do not support an answer, the model must say 'not found'.",
+              "citations": [
+                { "source": 0, "quote": "Retrieval-augmented generation (RAG) first retrieves the most relevant passages, then asks a model to answer using only those passages and to cite them." },
+                { "source": 0, "quote": "Fix: tell the model to say 'not found' when the passages do not support an answer." }
+              ]
+            }
+          ],
+          "sources": [{ "noteId": "note-18", "title": "Embeddings and RAG study notes" }],
+          "status": "complete",
+          "error": null,
+          "feedback": { "rating": "up", "comment": "" },
+          "model": "quotes",
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "costUsd": 0,
+          "createdAt": "2026-10-18T20:30:00.000Z"
+        }
+      ],
+      "createdAt": "2026-10-18T20:30:00.000Z",
+      "updatedAt": "2026-10-18T20:30:00.000Z"
+    }
+  ],
+  "graph": {
+    "_note": "Graph page with 'similar meaning' switched on: 18 active notes (archived and trashed notes are left out). 'link' edges come from [[Title]] links; a link that is also similar carries its score.",
+    "nodes": [
+      { "id": "note-01", "title": "Sourdough hydration", "type": "note", "folderId": "folder-kitchen", "tags": ["baking", "bread", "sourdough"], "topicId": "topic-baking", "degree": 2 },
+      { "id": "note-02", "title": "Sourdough hydration tips", "type": "note", "folderId": "folder-kitchen", "tags": ["baking", "sourdough"], "topicId": "topic-baking", "degree": 1 },
+      { "id": "note-03", "title": "Sourdough (Wikipedia)", "type": "url", "folderId": "folder-kitchen", "tags": ["baking", "reading", "sourdough"], "topicId": "topic-baking", "degree": 1 },
+      { "id": "note-04", "title": "Easy run pace", "type": "note", "folderId": "folder-fitness", "tags": ["fitness", "running", "training"], "topicId": "topic-running", "degree": 1 },
+      { "id": "note-05", "title": "Weekly training plan", "type": "note", "folderId": "folder-fitness", "tags": ["fitness", "plans", "running"], "topicId": "topic-running", "degree": 1 },
+      { "id": "note-06", "title": "Pantry tracker app", "type": "idea", "folderId": "folder-projects", "tags": ["app", "cooking", "idea"], "topicId": null, "degree": 0 },
+      { "id": "note-07", "title": "Blog series on note-taking habits", "type": "idea", "folderId": null, "tags": ["idea", "writing"], "topicId": null, "degree": 0 },
+      { "id": "note-08", "title": "useDebounce hook", "type": "snippet", "folderId": "folder-projects", "tags": ["react", "snippet", "typescript"], "topicId": null, "degree": 0 },
+      { "id": "note-09", "title": "Restart a Kubernetes deployment", "type": "snippet", "folderId": "folder-work", "tags": ["bash", "kubernetes", "snippet"], "topicId": "topic-kubernetes", "degree": 0 },
+      { "id": "note-10", "title": "Kubernetes probes", "type": "note", "folderId": "folder-work", "tags": ["devops", "kubernetes"], "topicId": "topic-kubernetes", "degree": 3 },
+      { "id": "note-11", "title": "Debugging CrashLoopBackOff", "type": "note", "folderId": "folder-work", "tags": ["debugging", "devops", "kubernetes"], "topicId": "topic-kubernetes", "degree": 2 },
+      { "id": "note-12", "title": "Platform runbook", "type": "note", "folderId": "folder-work", "tags": ["devops", "kubernetes", "runbook"], "topicId": "topic-kubernetes", "degree": 2 },
+      { "id": "note-13", "title": "MDN: Using the Fetch API", "type": "url", "folderId": "folder-learning", "tags": ["javascript", "reading", "web"], "topicId": null, "degree": 0 },
+      { "id": "note-14", "title": "Kubernetes docs: Configure liveness, readiness and startup probes", "type": "url", "folderId": "folder-work", "tags": ["devops", "kubernetes", "reading"], "topicId": "topic-kubernetes", "degree": 2 },
+      { "id": "note-15", "title": "Configure probes (saved again)", "type": "url", "folderId": "folder-work", "tags": ["devops", "kubernetes", "reading"], "topicId": "topic-kubernetes", "degree": 1 },
+      { "id": "note-16", "title": "Q3 Product Roadmap", "type": "document", "folderId": "folder-work", "tags": ["planning", "roadmap", "work"], "topicId": null, "degree": 0 },
+      { "id": "note-17", "title": "Lisbon trip itinerary", "type": "document", "folderId": "folder-travel", "tags": ["lisbon", "plans", "travel"], "topicId": null, "degree": 0 },
+      { "id": "note-18", "title": "Embeddings and RAG study notes", "type": "document", "folderId": "folder-learning", "tags": ["ai", "embeddings", "rag", "reading"], "topicId": null, "degree": 0 }
+    ],
+    "edges": [
+      { "source": "note-05", "target": "note-04", "kind": "link", "similar": 0.74 },
+      { "source": "note-11", "target": "note-10", "kind": "link", "similar": 0.71 },
+      { "source": "note-12", "target": "note-10", "kind": "link", "similar": 0.64 },
+      { "source": "note-12", "target": "note-11", "kind": "link", "similar": 0.62 },
+      { "source": "note-01", "target": "note-02", "kind": "similar", "similar": 0.93 },
+      { "source": "note-01", "target": "note-03", "kind": "similar", "similar": 0.62 },
+      { "source": "note-14", "target": "note-15", "kind": "similar", "similar": 0.99 },
+      { "source": "note-10", "target": "note-14", "kind": "similar", "similar": 0.66 }
+    ],
+    "capped": false,
+    "total": 18
+  },
+  "topics": {
+    "_note": "Topics found by grouping connected notes, and notes that are not connected to anything.",
+    "topics": [
+      { "id": "topic-kubernetes", "name": "kubernetes", "noteIds": ["note-09", "note-10", "note-11", "note-12", "note-14", "note-15"], "size": 6 },
+      { "id": "topic-baking", "name": "sourdough", "noteIds": ["note-01", "note-02", "note-03"], "size": 3 },
+      { "id": "topic-running", "name": "running", "noteIds": ["note-04", "note-05"], "size": 2 }
+    ],
+    "unconnected": [
+      { "_id": "note-06", "title": "Pantry tracker app", "type": "idea" },
+      { "_id": "note-07", "title": "Blog series on note-taking habits", "type": "idea" },
+      { "_id": "note-08", "title": "useDebounce hook", "type": "snippet" },
+      { "_id": "note-13", "title": "MDN: Using the Fetch API", "type": "url" },
+      { "_id": "note-16", "title": "Q3 Product Roadmap", "type": "document" },
+      { "_id": "note-17", "title": "Lisbon trip itinerary", "type": "document" },
+      { "_id": "note-18", "title": "Embeddings and RAG study notes", "type": "document" }
+    ],
+    "unconnectedCount": 7
+  }
+}
